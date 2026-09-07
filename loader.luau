@@ -22,8 +22,8 @@ local games = {
 local cid = game.CreatorId
 print(cid)
 local file = games[cid]
-if not file then warn("games file not found") return end
+if not file then warn("! unsupported game") return end
 print("! "..file)
 loadstring(game:HttpGet(base .. file))()
 task.wait(0.125)
-print("! ok")
+print("! .gg/s5TcXmE74k")
