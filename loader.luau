@@ -17,6 +17,7 @@ local games = {
     [16812202] = 'spelling-bee.luau', -- fsb
     [358916245] = 'spelling-bee.luau', -- csb
     [2682905822] = 'spelling-bee.luau', -- xzsb
+    [783008896] = 'jump-to-steal.luau',
 }
 
 local cid = game.CreatorId
