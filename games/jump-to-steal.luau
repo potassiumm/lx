@@ -56,6 +56,7 @@ local gen = getgenv().lx_jts_gen
 local function alive()
     return getgenv().lx_jts_gen == gen
 end
+
 local uis = game:GetService("UserInputService")
 local run = game:GetService("RunService")
 local rs = game:GetService("ReplicatedStorage")
@@ -83,7 +84,29 @@ local rarity_color = {
     Transcendent = Color3.fromRGB(255, 0, 100),
     Eternal = Color3.new(1, 1, 1)
 }
-local biome_opts = {"Forest", "Swamp", "Savanna", "Jungle", "Winter", "Desert", "Ocean", "Prehistoric", "Volcano", "Heaven"}
+local biome_opts = {}
+local biome_seen = {}
+local function rescan_biomes()
+    local m = ws:FindFirstChild("Map")
+    local nests = m and m:FindFirstChild("BiomeNests")
+    if not nests then return biome_opts end
+    local raw = {}
+    for _, bf in ipairs(nests:GetChildren()) do
+        table.insert(raw, bf.Name)
+    end
+    table.sort(raw)
+    local found = {}
+    for _, full in ipairs(raw) do
+        local nm = string.gsub(full, "^%d+_", "")
+        if not biome_seen[nm] then
+            biome_seen[nm] = true
+            table.insert(found, nm)
+        end
+    end
+    biome_opts = found
+    return found
+end
+rescan_biomes()
 
 local w = library:window({
     title = "lunar x",
@@ -276,7 +299,7 @@ local steal_top_zone = false
 local function fire_prompt(prompt)
     if not prompt then return false end
     local okf = pcall(function()
-        fireproximityprompt(prompt)
+        fireproximityprompt(prompt, prompt.HoldDuration > 0)
     end)
     if okf then return true end
     return pcall(function()
@@ -308,7 +331,7 @@ local function steal_pick()
     for _, rec in ipairs(eggs) do
         if next(steal_biomes) ~= nil and not steal_biomes[rec.biome] then continue end
         if steal_top_zone and rec.floor > topfloor then continue end
-        local rank = rarity_rank[rec.rarity] or 1
+        local rank = rarity_rank[rec.rarity] or (#rarity_list + 1)
         if rank < steal_minrarity then continue end
         local def = steal_top_zone and 0 or (floor_deficit[rec.floor] or 0)
         local score = (rank - def * 0.001) * 1000000 + math.min(rec.root.Position.Y, 100000)
@@ -481,14 +504,40 @@ library.toggle(s1, { name = "auto steal", default = false, callback = function(v
     end)
 end })
 
-library.dropdown(s1, { name = "biomes", options = biome_opts, multiple = true, default = {}, callback = function(v)
+local biome_dd = library.dropdown(s1, { name = "biomes", options = biome_opts, multiple = true, default = {}, callback = function(v)
     steal_biomes = {}
     for _, b in ipairs(v) do steal_biomes[b] = true end
 end })
 
-library.dropdown(s1, { name = "min rarity", options = {"any", unpack(rarity_list)}, default = "any", callback = function(v)
+local rar_dd = library.dropdown(s1, { name = "min rarity", options = {"any", unpack(rarity_list)}, default = "any", callback = function(v)
     steal_minrarity = v == "any" and 0 or (rarity_rank[v] or 0)
 end })
+
+local biome_sig = table.concat(biome_opts, ",")
+task.spawn(function()
+    while alive() do
+        local opts = rescan_biomes()
+        local sig = table.concat(opts, ",")
+        if #opts > 0 and sig ~= biome_sig then
+            biome_sig = sig
+            pcall(function() biome_dd:refresh(opts) end)
+        end
+        local changed = false
+        for _, rec in ipairs(field_eggs()) do
+            local r = rec.rarity
+            if r and rarity_rank[r] == nil then
+                rarity_rank[r] = #rarity_list + 1
+                table.insert(rarity_list, r)
+                rarity_color[r] = Color3.fromHSV((#rarity_list % 10) / 10, 0.65, 1)
+                changed = true
+            end
+        end
+        if changed then
+            pcall(function() rar_dd:refresh({"any", unpack(rarity_list)}) end)
+        end
+        task.wait(10)
+    end
+end)
 
 library.toggle(s1, { name = "target best zone and under", default = false, callback = function(v) steal_top_zone = v end })
 
@@ -822,7 +871,7 @@ end })
 
 library.toggle(s4, { name = "auto claim index rewards", default = false, callback = function(v)
     local on = v
-    if on then every(15, function() if not on or not alive() then return false end rcall("RequestClaimIndexRewards") return true end) end
+    if on then every(30, function() if not on or not alive() then return false end rcall("RequestClaimIndexRewards") return true end) end
 end })
 
 library.toggle(s4, { name = "auto claim group reward", default = false, callback = function(v)
@@ -1618,7 +1667,7 @@ library.button(s11, { name = "test webhook", callback = function()
                 Url = webhook_url,
                 Method = "POST",
                 Headers = {["Content-Type"] = "application/json"},
-                Body = hs:JSONEncode({content = "webhook"})
+                Body = hs:JSONEncode({content = "lunar x - jump to steal an egg: webhook works"})
             })
         end)
     end)
