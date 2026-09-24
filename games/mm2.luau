@@ -1,36 +1,10 @@
 --[[
-    Lunar X
-    Copyright (c) 2026 potassiumm
+    xyro
+    Copyright (c) 2026 nick (.weound)
     Licensed under the Non-Commercial Share-Alike License (see LICENSE in the repo root).
 --]]
 
-local function check(func)
-    local f = _G[func] or getfenv(0)[func] or
-    (func == "gethui" and gethui) or 
-    (func == "setclipboard" and setclipboard) or 
-    (func == "Drawing.new" and Drawing and Drawing.new) or 
-    (func == "loadstring" and loadstring) or 
-    (func == "newcclosure" and newcclosure) or 
-    (func == "checkcaller" and checkcaller)
-    
-    if not f or type(f) ~= "function" then
-        warn("your executor does not support '" .. func .. "', bye")
-        return false
-    end
-    return true
-end
-
-local funcs = {"getgenv", "newcclosure", "checkcaller", "loadstring", "gethui", "Drawing.new", "setclipboard"}
-for _, f in ipairs(funcs) do
-    if not check(f) then return end
-end
-
-if not game.HttpGet then
-    warn("your executor does not support 'HttpGet', bye")
-    return
-end
-
-local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/potassiumm/lx/main/ui/fware/library.luau"))()
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/potassiumm/lx/refs/heads/main/ui/fware/library.luau"))()
 
 local players = game:GetService("Players")
 local uis = game:GetService("UserInputService")
@@ -47,7 +21,7 @@ local setclipboard = setclipboard or function() end
 local gethui = gethui or function() return game:GetService("CoreGui") end
 
 local w = library:window({ 
-    title = "lunar x", 
+    title = "xyro", 
     subtitle = " - mm2", 
     size = UDim2.new(0, 650, 0, 450),
     icon = "moon",
@@ -55,6 +29,8 @@ local w = library:window({
     discord_link = "discord.gg/n6SzrKpVnU",
     script_url = "https://raw.githubusercontent.com/potassiumm/lx/main/games/mm2.luau"
 })
+
+library.directory = "LunarX/mm2"
 
 local t1 = w:tab({ name = "combat", icon = "swords", search = true })
 local t2 = w:tab({ name = "visuals", icon = "eye", search = true })
