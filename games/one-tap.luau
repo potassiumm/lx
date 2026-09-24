@@ -1,6 +1,6 @@
 --[[
-    Lunar X
-    Copyright (c) 2026 potassiumm
+    xyro
+    Copyright (c) 2026 nick (.weound)
     Licensed under the Non-Commercial Share-Alike License (see LICENSE in the repo root).
 --]]
 
@@ -580,8 +580,8 @@ local function apply_vm_chams()
     local function apply(part, color, material, trans, enabled)
         if not part or not part:IsA("BasePart") then return end
         if enabled then
-            if not part:GetAttribute("LunarVMOrig") then
-                part:SetAttribute("LunarVMOrig", true)
+            if not part:GetAttribute("xyroVMorig") then
+                part:SetAttribute("xyroVMorig", true)
                 part:SetAttribute("OrigMat", part.Material)
                 part:SetAttribute("OrigColor", part.Color)
                 part:SetAttribute("OrigTrans", part.Transparency)
@@ -590,11 +590,11 @@ local function apply_vm_chams()
             part.Material = material
             part.Transparency = trans
         else
-            if part:GetAttribute("LunarVMOrig") then
+            if part:GetAttribute("xyroVMorig") then
                 part.Material = part:GetAttribute("OrigMat")
                 part.Color = part:GetAttribute("OrigColor")
                 part.Transparency = part:GetAttribute("OrigTrans")
-                part:SetAttribute("LunarVMOrig", nil)
+                part:SetAttribute("xyroVMorig", nil)
             end
         end
     end
@@ -681,7 +681,7 @@ local function set_aura_shp(shape)
 end
 
 local Window = Library:CreateWindow({
-    Title = "lunar x | one tap",
+    Title = "xyro | one tap",
     Center = true,
     AutoShow = true,
     TabPadding = 8,
@@ -1126,7 +1126,7 @@ local wconn = game:GetService('RunService').RenderStepped:Connect(function()
         ftimer = tick()
         fcounter = 0
     end
-    Library:SetWatermark(('lunar x | %s fps'):format(math.floor(fps)))
+    Library:SetWatermark(('xyro | %s fps'):format(math.floor(fps)))
 end)
 
 MenuGroup:AddLabel('Accent Color'):AddColorPicker('accent_color', { Default = rgb(100, 100, 255), Transparency = 0, Callback = function(c) 
@@ -1170,8 +1170,8 @@ ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
-ThemeManager:SetFolder('LunarX')
-SaveManager:SetFolder('LunarX/one-tap')
+ThemeManager:SetFolder('Xyro')
+SaveManager:SetFolder('Xyro/one-tap')
 SaveManager:BuildConfigSection(Tabs.Settings)
 ThemeManager:ApplyToTab(Tabs.Settings)
 SaveManager:LoadAutoloadConfig()
