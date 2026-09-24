@@ -1,6 +1,6 @@
 --[[
     xyro
-    Copyright (c) 2026 nick (.weound)
+    Copyright (c) potassiumm
     Licensed under the Non-Commercial Share-Alike License (see LICENSE in the repo root).
 --]]
 
