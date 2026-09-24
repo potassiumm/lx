@@ -1,5 +1,5 @@
 --[[
-    Lunar X
+    xyro
     Copyright (c) 2026 nick (.weound)
     Licensed under the Non-Commercial Share-Alike License (see LICENSE in the repo root).
 --]]
@@ -49,7 +49,7 @@ local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/potas
 getgenv().lx_jts_lib = library
 getgenv().lx_jts_on = true
 
-library.directory = "LunarX/jump-to-steal"
+library.directory = "Xyro/jump-to-steal"
 
 local players = game:GetService("Players")
 local gen = getgenv().lx_jts_gen
@@ -109,7 +109,7 @@ end
 rescan_biomes()
 
 local w = library:window({
-    title = "lunar x",
+    title = "xyro",
     subtitle = " - jump to steal an egg",
     size = UDim2.new(0, 650, 0, 450),
     icon = "moon",
@@ -299,7 +299,7 @@ local steal_top_zone = false
 local function fire_prompt(prompt)
     if not prompt then return false end
     local okf = pcall(function()
-        fireproximityprompt(prompt, prompt.HoldDuration > 0)
+        fireproximityprompt(prompt)
     end)
     if okf then return true end
     return pcall(function()
@@ -1667,7 +1667,7 @@ library.button(s11, { name = "test webhook", callback = function()
                 Url = webhook_url,
                 Method = "POST",
                 Headers = {["Content-Type"] = "application/json"},
-                Body = hs:JSONEncode({content = "lunar x - jump to steal an egg: webhook works"})
+                Body = hs:JSONEncode({content = "xyro webhook works"})
             })
         end)
     end)
