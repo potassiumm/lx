@@ -30,7 +30,7 @@ local w = library:window({
     script_url = "https://raw.githubusercontent.com/potassiumm/lx/main/games/mm2.luau"
 })
 
-library.directory = "LunarX/mm2"
+library.directory = "Xyro/mm2"
 
 local t1 = w:tab({ name = "combat", icon = "swords", search = true })
 local t2 = w:tab({ name = "visuals", icon = "eye", search = true })
