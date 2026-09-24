@@ -1,5 +1,5 @@
 --[[
-    Lunar X
+    xyro
     Copyright (c) 2026 potassiumm
     Licensed under the Non-Commercial Share-Alike License (see LICENSE in the repo root).
 --]]
@@ -566,7 +566,7 @@ local function applyGunChams()
 end
 
 local window = library:CreateWindow({
-    Title = 'lunar x | arsenal',
+    Title = 'xyro | arsenal',
     Center = true,
     AutoShow = true,
     TabPadding = 8,
@@ -694,9 +694,9 @@ worldSec:AddToggle('stretched_res', { Text = 'Stretched Resolution', Default = f
 worldSec:AddSlider('stretched_x', { Text = 'Res X', Min = 800, Max = 3840, Default = 1920, Rounding = 0, Suffix = 'px', Callback = function(v) flags['stretched_x'] = v end })
 worldSec:AddSlider('stretched_y', { Text = 'Res Y', Min = 600, Max = 2160, Default = 1080, Rounding = 0, Suffix = 'px', Callback = function(v) flags['stretched_y'] = v end })
 
-hlSec:AddToggle('highlight_enemies', { Text = 'Highlight Enemies', Default = false, Callback = function(v) flags['highlight_enemies'] = v; for _, pl in ipairs(plrs:GetPlayers()) do if pl ~= lp and pl.Character then local ex = pl.Character:FindFirstChild('LunarHL'); if v and not ex then local h = Instance.new('Highlight'); h.Name = 'LunarHL'; h.FillColor = state.colors.hlEnemy; h.OutlineColor = rgb(255, 255, 255); h.FillTransparency = 0.5; h.Parent = pl.Character elseif not v and ex then ex:Destroy() end end end end })
-hlSec:AddLabel('HL Enemy Fill'):AddColorPicker('hl_enemy_fill', { Default = state.colors.hlEnemy, Title = 'HL Enemy Fill', Callback = function(c) flags['hl_enemy_fill'] = c; state.colors.hlEnemy = c; for _, pl in ipairs(plrs:GetPlayers()) do if pl ~= lp and pl.Character then local ex = pl.Character:FindFirstChild('LunarHL'); if ex then ex.FillColor = c end end end end })
-hlSec:AddToggle('highlight_self', { Text = 'Highlight Self', Default = false, Callback = function(v) flags['highlight_self'] = v; local c = getChar(); if not c then return end; local ex = c:FindFirstChild('LunarSelfHL'); if v and not ex then local h = Instance.new('Highlight'); h.Name = 'LunarSelfHL'; h.FillColor = hex('#AA55EB'); h.OutlineColor = rgb(255, 255, 255); h.FillTransparency = 0.6; h.Parent = c elseif not v and ex then ex:Destroy() end end })
+hlSec:AddToggle('highlight_enemies', { Text = 'Highlight Enemies', Default = false, Callback = function(v) flags['highlight_enemies'] = v; for _, pl in ipairs(plrs:GetPlayers()) do if pl ~= lp and pl.Character then local ex = pl.Character:FindFirstChild('xyroHL'); if v and not ex then local h = Instance.new('Highlight'); h.Name = 'xyroHL'; h.FillColor = state.colors.hlEnemy; h.OutlineColor = rgb(255, 255, 255); h.FillTransparency = 0.5; h.Parent = pl.Character elseif not v and ex then ex:Destroy() end end end end })
+hlSec:AddLabel('HL Enemy Fill'):AddColorPicker('hl_enemy_fill', { Default = state.colors.hlEnemy, Title = 'HL Enemy Fill', Callback = function(c) flags['hl_enemy_fill'] = c; state.colors.hlEnemy = c; for _, pl in ipairs(plrs:GetPlayers()) do if pl ~= lp and pl.Character then local ex = pl.Character:FindFirstChild('xyroHL'); if ex then ex.FillColor = c end end end end })
+hlSec:AddToggle('highlight_self', { Text = 'Highlight Self', Default = false, Callback = function(v) flags['highlight_self'] = v; local c = getChar(); if not c then return end; local ex = c:FindFirstChild('xyroSelfHL'); if v and not ex then local h = Instance.new('Highlight'); h.Name = 'xyroSelfHL'; h.FillColor = hex('#AA55EB'); h.OutlineColor = rgb(255, 255, 255); h.FillTransparency = 0.6; h.Parent = c elseif not v and ex then ex:Destroy() end end })
 
 chamsSec:AddToggle('chams_on', { Text = 'Chams', Default = false, Callback = function(v) flags['chams_on'] = v; if v then reapplyAllChams() else for _, pl in ipairs(plrs:GetPlayers()) do removeChams(pl) end end end })
 chamsSec:AddDropdown('chams_material', { Text = 'Material', Values = {'Neon', 'ForceField', 'SmoothPlastic', 'Glass'}, Default = 'Neon', Callback = function(v) flags['chams_material'] = v; if flags['chams_on'] then for _, pl in ipairs(plrs:GetPlayers()) do removeChams(pl); applyChams(pl) end end end })
@@ -1287,8 +1287,8 @@ local function applyLoadedSkins()
     end
 end
 
-autoExecSec:AddToggle('auto_exec_on_join', { Text = 'Auto exec on Join', Default = false, Callback = function(v) flags['auto_exec_on_join'] = v; if v then writefile("LunarX/arsenal/autoexec.cfg", "true"); library:Notify('place this script in your autoexec folder if auto exec isnt working!') else if isfile("LunarX/arsenal/autoexec.cfg") then delfile("LunarX/arsenal/autoexec.cfg") end end end })
-autoExecSec:AddToggle('silent_load', { Text = 'Silent load', Default = false, Callback = function(v) flags['silent_load'] = v; if v then writefile("LunarX/arsenal/silentload.cfg", "true") else if isfile("LunarX/arsenal/silentload.cfg") then delfile("LunarX/arsenal/silentload.cfg") end end end })
+autoExecSec:AddToggle('auto_exec_on_join', { Text = 'Auto exec on Join', Default = false, Callback = function(v) flags['auto_exec_on_join'] = v; if v then writefile("Xyro/arsenal/autoexec.cfg", "true"); library:Notify('place this script in your autoexec folder if auto exec isnt working!') else if isfile("Xyro/arsenal/autoexec.cfg") then delfile("Xyro/arsenal/autoexec.cfg") end end end })
+autoExecSec:AddToggle('silent_load', { Text = 'Silent load', Default = false, Callback = function(v) flags['silent_load'] = v; if v then writefile("Xyro/arsenal/silentload.cfg", "true") else if isfile("Xyro/arsenal/silentload.cfg") then delfile("Xyro/arsenal/silentload.cfg") end end end })
 
 uiSec:AddToggle('ui_keybind_list', { Text = 'Keybind List', Default = false, Callback = function(v) flags['ui_keybind_list'] = v; library.KeybindFrame.Visible = v end })
 local ftimer = tick()
@@ -1302,7 +1302,7 @@ local wconn = game:GetService('RunService').RenderStepped:Connect(function()
         ftimer = tick()
         fcounter = 0
     end
-    library:SetWatermark(('lunar x | %s fps'):format(math.floor(fps)))
+    library:SetWatermark(('xyro | %s fps'):format(math.floor(fps)))
 end)
 
 uiSec:AddLabel('Menu Toggle'):AddKeyPicker('MenuKeybind', { Default = 'RightShift', Mode = 'Toggle', Text = 'Menu Toggle', NoUI = true })
@@ -1318,11 +1318,11 @@ uiSec:AddButton({ Text = 'Unload', Func = function()
 
     for _, pl in ipairs(plrs:GetPlayers()) do
         restoreHitbox(pl); removeChams(pl)
-        if pl.Character then local ex = pl.Character:FindFirstChild("LunarHL"); if ex then ex:Destroy() end end
+        if pl.Character then local ex = pl.Character:FindFirstChild("xyroHL"); if ex then ex:Destroy() end end
     end
     removeAntiAim()
     local c = getChar()
-    if c then local ex = c:FindFirstChild("LunarSelfHL"); if ex then ex:Destroy() end end
+    if c then local ex = c:FindFirstChild("xyroSelfHL"); if ex then ex:Destroy() end end
 
     light.Ambient = lightOrig.Ambient
     light.Brightness = lightOrig.Brightness
@@ -1745,9 +1745,9 @@ end)
 connect(plrs.PlayerAdded, function(pl)
     connect(pl.CharacterAdded, function(char)
         task.wait(1)
-        if flags["highlight_enemies"] and not char:FindFirstChild("LunarHL") then
+        if flags["highlight_enemies"] and not char:FindFirstChild("xyroHL") then
             local hh = Instance.new("Highlight")
-            hh.Name = "LunarHL"; hh.FillColor = state.colors.hlEnemy
+            hh.Name = "xyroHL"; hh.FillColor = state.colors.hlEnemy
             hh.OutlineColor = rgb(255, 255, 255); hh.FillTransparency = 0.5; hh.Parent = char
         end
         task.wait(0.5)
@@ -1758,22 +1758,22 @@ connect(plrs.PlayerAdded, function(pl)
 end)
 
 SaveManager:SetLibrary(library)
-SaveManager:SetFolder('LunarX/arsenal')
+SaveManager:SetFolder('Xyro/arsenal')
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ 'MenuKeybind', 'search_melee', 'search_skin', 'search_announcer', 'search_card', 'fav_search', 'config_name_text_box', 'config_name_list' })
 SaveManager:BuildConfigSection(settingsTab)
 
 ThemeManager:SetLibrary(library)
-ThemeManager:SetFolder('LunarX')
+ThemeManager:SetFolder('Xyro')
 ThemeManager:ApplyToTab(settingsTab)
 
 task.spawn(function()
     task.wait(1)
-    if isfile("LunarX/arsenal/silentload.cfg") then
+    if isfile("Xyro/arsenal/silentload.cfg") then
         library.Toggle()
         flags["silent_load"] = true
     end
-    if isfile("LunarX/arsenal/autoexec.cfg") then
+    if isfile("Xyro/arsenal/autoexec.cfg") then
         flags["auto_exec_on_join"] = true
         if queue_on_teleport then
             queue_on_teleport(s_url)
