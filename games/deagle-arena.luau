@@ -1,6 +1,6 @@
 --[[
-    Lunar X
-    Copyright (c) 2026 potassiumm
+    xyro
+    Copyright (c) 2026 nick (.weound)
     Licensed under the Non-Commercial Share-Alike License (see LICENSE in the repo root).
 --]]
 
@@ -46,7 +46,7 @@ lib.Toggles = Toggles
 lib.Options = Options
 
 local flags = {}
-lib.directory = "LunarX/deagle-arena"
+lib.directory = "Xyro/deagle-arena"
 
 local players = game:GetService("Players")
 local run_service = game:GetService("RunService")
@@ -555,19 +555,19 @@ end
 local function apply_chams(char)
     if not char or not char.Parent then return end
     if not flags["chams_on"] then
-        if char:FindFirstChild("LunarChams") then char.LunarChams:Destroy() end
+        if char:FindFirstChild("xyroChams") then char.xyroChams:Destroy() end
         return
     end
     
-    if not char:FindFirstChild("LunarChams") then
+    if not char:FindFirstChild("xyroChams") then
         local h = Instance.new("Highlight")
-        h.Name = "LunarChams"
+        h.Name = "xyroChams"
         h.FillColor = chams_color
         h.OutlineColor = Color3.new(1, 1, 1)
         h.Parent = char
     end
     
-    local c = char.LunarChams
+    local c = char.xyroChams
     c.FillColor = chams_color
     c.FillTransparency = 0.5
     c.OutlineTransparency = 0
@@ -688,7 +688,7 @@ local function set_aura_shape(shape)
     end
 end
 
-local window = lib:CreateWindow({ Title = "lunar x | deagle arena", Center = true, AutoShow = true, TabPadding = 8, MenuFadeTime = 0.2 })
+local window = lib:CreateWindow({ Title = "xyro | deagle arena", Center = true, AutoShow = true, TabPadding = 8, MenuFadeTime = 0.2 })
 
 local aim_tab = window:AddTab('aimbot')
 local visuals_tab = window:AddTab('visuals')
@@ -1591,7 +1591,7 @@ local wconn = game:GetService('RunService').RenderStepped:Connect(function()
         fcounter = 0
     end
 
-    lib:SetWatermark(('lunar x | %s fps'):format(math.floor(fps)))
+    lib:SetWatermark(('xyro | %s fps'):format(math.floor(fps)))
 end)
 
 task.spawn(function()
@@ -1603,13 +1603,13 @@ task.spawn(function()
 end)
 
 SaveManager:SetLibrary(lib)
-SaveManager:SetFolder('LunarX/deagle-arena')
+SaveManager:SetFolder('Xyro/deagle-arena')
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ 'menu_key' })
 SaveManager:BuildConfigSection(settings_tab)
 
 ThemeManager:SetLibrary(lib)
-ThemeManager:SetFolder('LunarX/deagle-arena')
+ThemeManager:SetFolder('Xyro/deagle-arena')
 ThemeManager:ApplyToTab(settings_tab)
 
 SaveManager:LoadAutoloadConfig()
