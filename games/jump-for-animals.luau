@@ -1,5 +1,5 @@
 --[[
-    Lunar X
+    xyro
     Copyright (c) 2026 nick (.weound)
     Licensed under the Non-Commercial Share-Alike License (see LICENSE in the repo root).
 --]]
@@ -48,7 +48,7 @@ local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/potas
 getgenv().lx_jfa_lib = library
 getgenv().lx_jfa_on = true
 
-library.directory = "LunarX/jump-for-animals"
+library.directory = "Xyro/jump-for-animals"
 
 local players = game:GetService("Players")
 local gen = getgenv().lx_jfa_gen
@@ -93,7 +93,7 @@ do
 end
 
 local w = library:window({
-    title = "lunar x",
+    title = "xyro",
     subtitle = " - jump for animals",
     size = UDim2.new(0, 650, 0, 450),
     icon = "moon",
@@ -796,7 +796,7 @@ library.toggle(s2, { name = "auto place eggs", default = false, callback = funct
                 local fresh = (os.clock() - (pet_snapshot.t or 0)) < 4
                 if not fresh then
                     fire("PetInventory", "Get")
-                    task.wait(1.5)
+                    task.wait(0.3)
                 end
                 if #snapshot_eggs() >= 8 then task.wait(5) continue end
                 local tools = egg_tools()
@@ -816,7 +816,7 @@ library.toggle(s2, { name = "auto place eggs", default = false, callback = funct
                 local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
                 if hum and tool.Parent ~= plr.Character then
                     hum:EquipTool(tool)
-                    task.wait(0.8)
+                    task.wait(0.3)
                 end
                 if tool.Parent ~= plr.Character then
                     task.wait(0.8)
@@ -831,7 +831,7 @@ library.toggle(s2, { name = "auto place eggs", default = false, callback = funct
                 local gz = (row - 2) * 7.5
                 plant_i = plant_i + 1
                 fire("PlaceEggRequest", egid, det.Position + Vector3.new(gx, det.Size.Y * 0.5, gz))
-                task.wait(0.35)
+                task.wait(0.25)
             end
         end)
     end
@@ -888,9 +888,9 @@ library.toggle(s2, { name = "auto hatch eggs", default = false, callback = funct
                     for _, r in ipairs(due) do
                         fire("PetInventory", "EggAction", r.v.Id)
                     end
-                    task.wait(3)
+                    task.wait(1)
                 else
-                    task.wait(3.5)
+                    task.wait(1.5)
                 end
             end
         end)
