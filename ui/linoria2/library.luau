@@ -293,8 +293,6 @@ function Library:AddToolTip(InfoStr, HoverInstance)
     local TooltipLoop = nil
         local function placeTooltip()
         local cx, cy = Library:CursorPos()
-        -- ST: CursorPos already returns coordinates in gui space (topbar inset removed);
-        -- subtracting the inset again placed the tooltip way off the cursor
         local inset = Vector2.zero
         pcall(function()
             inset = game:GetService("GuiService"):GetGuiInset()
@@ -307,8 +305,9 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         local th = Tooltip.AbsoluteSize.Y
         if tw <= 0 then tw = Tooltip.Size.X.Offset end
         if th <= 0 then th = Tooltip.Size.Y.Offset end
-        local x = cx + 10;
-        local y = cy + 2;
+        local x = cx + 14;
+        local y = cy - 10;
+        if y < 4 then y = cy + 2 end
         if x + tw > vw - 4 then x = vw - tw - 4 end
         if y + th > vh - 4 then y = cy - th - 6 end
         if x < 4 then x = 4 end
@@ -2902,19 +2901,17 @@ do
             finalWidth = finalWidth + BAR_THIN
         end
 
-        -- ST: directional slide — notification slides in from its edge and slides
-        -- back out toward the same edge it came from (center slides vertically)
         local slideAxis, slideFromSign
         local alignEff = align
         if alignEff == 'Center' then
-            slideAxis = 'Y'          -- center: drop from above / rise from below
+            slideAxis = 'Y'
             slideFromSign = (barSide == 'Bottom') and 1 or -1
         elseif alignEff == 'Right' then
             slideAxis = 'X'
-            slideFromSign = 1        -- right edge: fly in from the right
+            slideFromSign = 1
         else
             slideAxis = 'X'
-            slideFromSign = -1       -- left edge: fly in from the left
+            slideFromSign = -1
         end
         local startOffset = (slideAxis == 'X')
             and UDim2.new(0, slideFromSign * finalWidth, 0, 0)
@@ -3821,13 +3818,12 @@ function Library:CreateWindow(...)
         Library.Toggled = not Library.Toggled;
         ModalElement.Modal = Library.Toggled;
         Outer.Visible = Library.Toggled;
-        -- ST: blur the game while the menu is open (harion-style LionMenuBlur)
         pcall(function()
             local Lighting = game:GetService("Lighting")
-            local MenuBlur = Lighting:FindFirstChild("XyroMenuBlur")
+            local MenuBlur = Lighting:FindFirstChild("menublur")
             if not MenuBlur or not MenuBlur:IsA("BlurEffect") then
                 MenuBlur = Instance.new("BlurEffect")
-                MenuBlur.Name = "XyroMenuBlur"
+                MenuBlur.Name = "menublur"
                 MenuBlur.Size = 0
                 MenuBlur.Parent = Lighting
             end
@@ -3884,8 +3880,6 @@ function Library:CreateWindow(...)
             Library.BlurEffect.Enabled = false
         end
     end
-    -- ST: register the global toggle-key handler ONCE, no matter how many windows exist;
-    -- one handler per window made every keypress toggle the menu N times
     if not Library.ToggleSignalConnected then
         Library.ToggleSignalConnected = true
         Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
