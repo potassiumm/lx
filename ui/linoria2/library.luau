@@ -306,7 +306,7 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         if tw <= 0 then tw = Tooltip.Size.X.Offset end
         if th <= 0 then th = Tooltip.Size.Y.Offset end
         local x = cx + 14;
-        local y = cy - 10;
+        local y = cy - 25;
         if y < 4 then y = cy + 2 end
         if x + tw > vw - 4 then x = vw - tw - 4 end
         if y + th > vh - 4 then y = cy - th - 6 end
