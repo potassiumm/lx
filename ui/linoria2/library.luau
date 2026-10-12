@@ -44,8 +44,9 @@ local Library = {
         BarSide   = 'Left';
         PositionX = 0;
         PositionY = 40;
+        AnchorPoint = nil;
     };
-    
+    TooltipResetters = {};
 };
 _G.UIUnlocked = false;
 Library.KeyPickerList = {};
@@ -306,10 +307,10 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         local th = Tooltip.AbsoluteSize.Y
         if tw <= 0 then tw = Tooltip.Size.X.Offset end
         if th <= 0 then th = Tooltip.Size.Y.Offset end
-        local x = cx + offsetX
-        local y = cy + offsetY
-        if x + tw > vw - 4 then x = cx - tw - 8 end
-        if y + th > vh - 4 then y = cy - th - 8 end
+        local x = cx + 6;
+        local y = cy + 18;
+        if x + tw > vw - 4 then x = vw - tw - 4 end
+        if y + th > vh - 4 then y = cy - th - 6 end
         if x < 4 then x = 4 end
         if y < 4 then y = 4 end
         Tooltip.Position = UDim2.fromOffset(math.floor(x), math.floor(y))
@@ -337,6 +338,14 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         IsHovering = false
         Tooltip.Visible = false
     end)
+    local function hide_if_hidden()
+        if not HoverInstance.Visible or not HoverInstance:IsDescendantOf(Library.ScreenGui) then
+            IsHovering = false
+            Tooltip.Visible = false
+        end
+    end
+    HoverInstance:GetPropertyChangedSignal('Visible'):Connect(hide_if_hidden)
+    table.insert(Library.TooltipResetters, hide_if_hidden)
 end
 function Library:OnHighlight(HighlightInstance, Instance, Properties, PropertiesDefault)
     HighlightInstance.MouseEnter:Connect(function()
@@ -1253,6 +1262,8 @@ do
             KeyPicker.Changed = Callback
             Callback(KeyPicker.Value)
         end
+        KeyPicker.ModeSelectOuter = ModeSelectOuter;
+        KeyPicker.KeybindEntry = KeybindEntry;
         if ParentObj.Addons then
             table.insert(ParentObj.Addons, KeyPicker)
             table.insert(Library.KeyPickerList, KeyPicker)
@@ -2024,7 +2035,7 @@ do
             Fill.BorderColor3     = Library.AccentColorDark;
         end;
         function Slider:Display()
-            local Suffix = Info.Suffix or '%';
+            local Suffix = Info.Suffix or '';
             DisplayLabel.Text = Info.Text .. ': ' .. Slider.Value .. Suffix;
             local X = math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, Slider.MaxSize));
             Fill.Size = UDim2.new(0, X, 1, 0);
@@ -2205,7 +2216,7 @@ do
             end
 
             function Slider:Display()
-                local Suffix  = Info.Suffix or '%';
+                local Suffix  = Info.Suffix or '';
                 local maxSize = GetMaxSize();
                 DisplayLabel.Text = Info.Text .. ': ' .. Slider.Value .. Suffix;
                 local X = math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, maxSize));
@@ -2736,19 +2747,39 @@ do
         local cfg = Library.NotifyConfig
         local area = Library.NotificationArea
         local layout = Library.NotifLayout
-        area.Position = UDim2.new(0, cfg.PositionX, 0, cfg.PositionY)
+        local scaleX = math.clamp(cfg.ScaleX or 0, 0, 1)
+        local scaleY = math.clamp(cfg.ScaleY or 0, 0, 1)
+        if scaleX > 0 or scaleY > 0 then
+            local cam = workspace.CurrentCamera
+            local viewport = cam and cam.ViewportSize or Vector2.new(1920, 1080)
+            area.Position = UDim2.new(scaleX, cfg.PositionX or 0, scaleY, cfg.PositionY or 40)
+            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
+        else
+            area.Position = UDim2.new(0, cfg.PositionX, 0, cfg.PositionY)
+            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
+        end
         area.Size     = UDim2.new(0, 300, 1, -cfg.PositionY)
         local align = cfg.Alignment or 'Left'
         if align == 'Left' then
             layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-            area.AnchorPoint = Vector2.new(0, 0)
+            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
         elseif align == 'Right' then
             layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-            area.AnchorPoint = Vector2.new(0, 0)
+            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
         elseif align == 'Center' then
             layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-            area.AnchorPoint = Vector2.new(0, 0)
+            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
         end
+        if cfg.BarSide == 'Top' or cfg.BarSide == 'Bottom' then
+            area.Size = UDim2.new(1, -8, 1, -cfg.PositionY)
+        end
+    end
+    function Library:SetNotificationPosition(config)
+        if type(config) ~= 'table' then return end
+        for Key, Value in next, config do
+            Library.NotifyConfig[Key] = Value
+        end
+        Library_UpdateNotifAlignment()
     end
     Library.UpdateNotifAlignment = Library_UpdateNotifAlignment
     Library_UpdateNotifAlignment()
@@ -3102,8 +3133,12 @@ function Library:SetKeybindMode(Mode)
 end
 function Library:RefreshKeybinds()
     for _, kp in ipairs(Library.KeyPickerList) do
-        if not kp.NoUI then
+        if not kp.NoUI and kp.Value ~= nil and kp.Value ~= '' and kp.Value ~= 'Unknown' and kp.Value ~= 'None' then
             pcall(function() kp:Update() end)
+        else
+            pcall(function()
+                if kp.KeybindEntry then kp.KeybindEntry.Visible = false end
+            end)
         end
     end
 end
@@ -3725,10 +3760,33 @@ function Library:CreateWindow(...)
         Modal = false;
         Parent = ScreenGui;
     });
+    function Library:CloseAllOpenMenus()
+        for Frame in next, Library.OpenedFrames do
+            if Frame and Frame.Visible then
+                Frame.Visible = false;
+            end
+            Library.OpenedFrames[Frame] = nil;
+        end;
+        for _, resetter in ipairs(Library.TooltipResetters) do
+            pcall(resetter);
+        end;
+        for _, kp in ipairs(Library.KeyPickerList) do
+            pcall(function()
+                if kp.ModeSelectOuter then kp.ModeSelectOuter.Visible = false end;
+            end);
+        end;
+    end;
+    Library.CloseAllOpenMenus = Library.CloseAllOpenMenus;
     function Library:Toggle()
         Library.Toggled = not Library.Toggled;
         ModalElement.Modal = Library.Toggled;
         Outer.Visible = Library.Toggled;
+        if not Library.Toggled then
+            Library:CloseAllOpenMenus();
+            for _, resetter in ipairs(Library.TooltipResetters) do
+                pcall(resetter);
+            end;
+        end;
         if Library.Toggled and not Library.CursorLoopRunning then
             Library.CursorLoopRunning = true
             task.spawn(function()
