@@ -307,8 +307,8 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         local th = Tooltip.AbsoluteSize.Y
         if tw <= 0 then tw = Tooltip.Size.X.Offset end
         if th <= 0 then th = Tooltip.Size.Y.Offset end
-        local x = cx + 6;
-        local y = cy + 18;
+        local x = cx + 10;
+        local y = cy + 2;
         if x + tw > vw - 4 then x = vw - tw - 4 end
         if y + th > vh - 4 then y = cy - th - 6 end
         if x < 4 then x = 4 end
@@ -1193,10 +1193,17 @@ do
         end;
         function KeyPicker:Update()
             if Info.NoUI then
+                if KeybindEntry then KeybindEntry.Visible = false end
                 return;
             end;
             local State = KeyPicker:GetState();
-            local displayKey = (KeyPicker.Value == 'None' or KeyPicker.Value == '' or KeyPicker.Value == '--') and '…' or KeyPicker.Value
+            local RawKey = tostring(KeyPicker.Value or '');
+            if RawKey == '' or RawKey == 'None' or RawKey == '--' or RawKey:lower() == 'unknown' then
+                -- unbound / unknown keybinds never show in the keybind list
+                if KeybindEntry then KeybindEntry.Visible = false end
+                return;
+            end;
+            local displayKey = (RawKey == 'None' or RawKey == '' or RawKey == '--') and '…' or RawKey
             ContainerLabel.Text = string.format('[%s] %s (%s)', displayKey, Info.Text, KeyPicker.Mode);
             local kbMode = Library.KeybindMode or 'All'
             if kbMode == 'Active' then
@@ -1627,7 +1634,7 @@ do
                     Button.Label.TextColor3 = Library.AccentColor
                     Button.Label.Text = 'Are you sure?'
                     Button.Locked = true
-                    local clicked = WaitForEvent(Button.Outer.InputBegan, 0.5, ValidateClick)
+                    local clicked = WaitForEvent(Button.Outer.InputBegan, 4, ValidateClick)
                     Library:RemoveFromRegistry(Button.Label)
                     Library:AddToRegistry(Button.Label, { TextColor3 = 'FontColor' })
                     Button.Label.TextColor3 = Library.FontColor
@@ -2887,11 +2894,35 @@ do
         if barSide == 'Left' or barSide == 'Right' then
             finalWidth = finalWidth + BAR_THIN
         end
-        local tweenIn = TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0, finalWidth, 0, YSize)})
+
+        -- ST: directional slide — notification slides in from its edge and slides
+        -- back out toward the same edge it came from (center slides vertically)
+        local slideAxis, slideFromSign
+        local alignEff = align
+        if alignEff == 'Center' then
+            slideAxis = 'Y'          -- center: drop from above / rise from below
+            slideFromSign = (barSide == 'Bottom') and 1 or -1
+        elseif alignEff == 'Right' then
+            slideAxis = 'X'
+            slideFromSign = 1        -- right edge: fly in from the right
+        else
+            slideAxis = 'X'
+            slideFromSign = -1       -- left edge: fly in from the left
+        end
+        local startOffset = (slideAxis == 'X')
+            and UDim2.new(0, slideFromSign * finalWidth, 0, 0)
+            or  UDim2.new(0, 0, 0, slideFromSign * YSize)
+        NotifyOuter.Position = NotifyOuter.Position + startOffset
+        NotifyOuter.AnchorPoint = NotifyOuter.AnchorPoint or Vector2.new(0, 0)
+        local targetPos = NotifyOuter.Position - startOffset
+        local tweenIn = TweenService:Create(NotifyOuter, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPos})
         tweenIn:Play()
         task.spawn(function()
             wait(Time or 5);
-            local tweenOut = TweenService:Create(NotifyOuter, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0, 0, 0, YSize)})
+            local exitOffset = (slideAxis == 'X')
+                and UDim2.new(0, slideFromSign * (finalWidth + 8), 0, 0)
+                or  UDim2.new(0, 0, 0, slideFromSign * (YSize + 8))
+            local tweenOut = TweenService:Create(NotifyOuter, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = targetPos + exitOffset})
             tweenOut:Play()
             tweenOut.Completed:Wait()
             NotifyOuter:Destroy();
@@ -3486,6 +3517,7 @@ function Library:CreateWindow(...)
             for _, Tab in next, Window.Tabs do
                 Tab:HideTab();
             end;
+            Library:CloseAllOpenMenus();
             Blocker.BackgroundTransparency = 0;
             TabButton.BackgroundColor3 = Library.MainColor;
             Library.RegistryMap[TabButton].Properties.BackgroundColor3 = 'MainColor';
@@ -3681,6 +3713,7 @@ function Library:CreateWindow(...)
                     for _, Tab in next, Tabbox.Tabs do
                         Tab:Hide();
                     end;
+                    Library:CloseAllOpenMenus();
                     Container.Visible = true;
                     Block.Visible = true;
                     TabHighlight.Visible = true;
@@ -3831,19 +3864,26 @@ function Library:CreateWindow(...)
             Library.BlurEffect.Enabled = false
         end
     end
-    Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
-        if type(Library.ToggleKeybind) == 'table' and Library.ToggleKeybind.Type == 'KeyPicker' then
-            if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode.Name == Library.ToggleKeybind.Value then
-                task.spawn(Library.Toggle)
+    -- ST: register the global toggle-key handler ONCE, no matter how many windows exist;
+    -- one handler per window made every keypress toggle the menu N times
+    if not Library.ToggleSignalConnected then
+        Library.ToggleSignalConnected = true
+        Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
+            local isToggleKey = false
+            if type(Library.ToggleKeybind) == 'table' and Library.ToggleKeybind.Type == 'KeyPicker' then
+                if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode.Name == Library.ToggleKeybind.Value then
+                    isToggleKey = true
+                end
+            elseif type(Library.ToggleKeybind) == 'string' then
+                if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode.Name == Library.ToggleKeybind then
+                    isToggleKey = true
+                end
+            elseif Input.KeyCode == Enum.KeyCode.RightControl or (Input.KeyCode == Enum.KeyCode.RightShift and (not Processed)) then
+                isToggleKey = true
             end
-        elseif type(Library.ToggleKeybind) == 'string' then
-            if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode.Name == Library.ToggleKeybind then
-                task.spawn(Library.Toggle)
-            end
-        elseif Input.KeyCode == Enum.KeyCode.RightControl or (Input.KeyCode == Enum.KeyCode.RightShift and (not Processed)) then
-            task.spawn(Library.Toggle)
-        end
-    end))
+            if isToggleKey then task.spawn(Library.Toggle) end
+        end))
+    end
     if Config.AutoShow then task.spawn(Library.Toggle) end
     Window.Holder = Outer;
     return Window;
