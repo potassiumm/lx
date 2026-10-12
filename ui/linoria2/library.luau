@@ -293,12 +293,12 @@ function Library:AddToolTip(InfoStr, HoverInstance)
     local TooltipLoop = nil
         local function placeTooltip()
         local cx, cy = Library:CursorPos()
+        -- ST: CursorPos already returns coordinates in gui space (topbar inset removed);
+        -- subtracting the inset again placed the tooltip way off the cursor
         local inset = Vector2.zero
         pcall(function()
             inset = game:GetService("GuiService"):GetGuiInset()
         end)
-        cx = cx - inset.X
-        cy = cy - inset.Y
         local offsetX, offsetY = 14, 18
         local cam = workspace.CurrentCamera
         local vw = (cam and cam.ViewportSize.X or 1920) - inset.X
@@ -474,6 +474,13 @@ Library._UnloadCallback = nil
 function Library:OnUnload(Callback)
     Library._UnloadCallback = Callback
 end
+Library:OnUnload(function()
+    pcall(function()
+        local Lighting = game:GetService("Lighting")
+        local blur = Lighting:FindFirstChild("XyroMenuBlur")
+        if blur then blur:Destroy() end
+    end)
+end)
 Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(Instance)
     if Library.RegistryMap[Instance] then
         Library:RemoveFromRegistry(Instance);
@@ -3814,6 +3821,19 @@ function Library:CreateWindow(...)
         Library.Toggled = not Library.Toggled;
         ModalElement.Modal = Library.Toggled;
         Outer.Visible = Library.Toggled;
+        -- ST: blur the game while the menu is open (harion-style LionMenuBlur)
+        pcall(function()
+            local Lighting = game:GetService("Lighting")
+            local MenuBlur = Lighting:FindFirstChild("XyroMenuBlur")
+            if not MenuBlur or not MenuBlur:IsA("BlurEffect") then
+                MenuBlur = Instance.new("BlurEffect")
+                MenuBlur.Name = "XyroMenuBlur"
+                MenuBlur.Size = 0
+                MenuBlur.Parent = Lighting
+            end
+            MenuBlur.Size = Library.Toggled and 20 or 0
+            MenuBlur.Enabled = Library.Toggled
+        end);
         if not Library.Toggled then
             Library:CloseAllOpenMenus();
             for _, resetter in ipairs(Library.TooltipResetters) do
