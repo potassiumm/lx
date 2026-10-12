@@ -161,6 +161,9 @@ local ThemeManager = {} do
 
 	function ThemeManager:GetCustomTheme(file)
 		local path = self.Folder .. '/themes/' .. file
+		if not isfile(path) and not file:find('%.json$') and isfile(path .. '.json') then
+			path = path .. '.json' -- accept stripped names like 'ue' for 'ue.json'
+		end
 		if not isfile(path) then
 			return nil
 		end
@@ -208,7 +211,11 @@ local ThemeManager = {} do
 				end
 
 				if char == '/' or char == '\\' then
-					table.insert(out, file:sub(pos + 1))
+					local name = file:sub(pos + 1)
+					if name:sub(-5) == '.json' then
+						name = name:sub(1, -6) -- strip the .json extension for display
+					end
+					table.insert(out, name)
 				end
 			end
 		end
