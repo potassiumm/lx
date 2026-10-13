@@ -306,7 +306,7 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         if tw <= 0 then tw = Tooltip.Size.X.Offset end
         if th <= 0 then th = Tooltip.Size.Y.Offset end
         local x = cx + 14;
-        local y = cy - 25;
+        local y = cy - 22.5;
         if y < 4 then y = cy + 2 end
         if x + tw > vw - 4 then x = vw - tw - 4 end
         if y + th > vh - 4 then y = cy - th - 6 end
@@ -2797,31 +2797,11 @@ do
     Library.UpdateNotifAlignment = Library_UpdateNotifAlignment
     Library_UpdateNotifAlignment()
     function Library:Notify(Text, Time)
-        local cfg     = Library.NotifyConfig
-        local barSide = cfg.BarSide   or 'Left'
-        local align   = cfg.Alignment or 'Left'
-        local XSize, YSize = Library:GetTextBounds(Text, Library.Font, Library.FontSize)
+        local XSize, YSize = Library:GetTextBounds(Text, Library.Font, 14);
         YSize = YSize + 7
-        local BAR_THIN  = 3
-        local BAR_THICK = 3
-        local innerPosX  = (barSide == 'Left')   and 1 or 1
-        local innerPosY  = (barSide == 'Top')    and BAR_THICK or 1
-        local innerSizeW = (barSide == 'Left' or barSide == 'Right') and -2 or -2
-        local innerSizeH = (barSide == 'Top' or barSide == 'Bottom') and -(BAR_THICK + 1) or -2
-        local labelPosX  = (barSide == 'Left')  and BAR_THIN + 2 or 4
-        local labelSizeW = (barSide == 'Left' or barSide == 'Right') and -(BAR_THIN + 4) or -4
-        local outerAnchor = Vector2.new(0, 0)
-        if align == 'Center' then
-            outerAnchor = Vector2.new(0.5, 0)
-        elseif align == 'Right' then
-            outerAnchor = Vector2.new(1, 0)
-        end
-        local childrenCount = #Library.NotificationArea:GetChildren()
         local NotifyOuter = Library:Create('Frame', {
-            BackgroundTransparency = 1;
-            AnchorPoint = outerAnchor;
             BorderColor3 = Color3.new(0, 0, 0);
-            LayoutOrder = childrenCount + 1;
+            Position = UDim2.new(0, 100, 0, 10);
             Size = UDim2.new(0, 0, 0, YSize);
             ClipsDescendants = true;
             ZIndex = 100;
@@ -2842,8 +2822,8 @@ do
         local InnerFrame = Library:Create('Frame', {
             BackgroundColor3 = Color3.new(1, 1, 1);
             BorderSizePixel = 0;
-            Position = UDim2.new(0, innerPosX, 0, innerPosY);
-            Size     = UDim2.new(1, innerSizeW, 1, innerSizeH);
+            Position = UDim2.new(0, 1, 0, 1);
+            Size = UDim2.new(1, -2, 1, -2);
             ZIndex = 102;
             Parent = NotifyInner;
         });
@@ -2864,71 +2844,30 @@ do
             end
         });
         local NotifyLabel = Library:CreateLabel({
-            Position = UDim2.new(0, labelPosX, 0, 0);
-            Size     = UDim2.new(1, labelSizeW, 1, 0);
-            Text     = Text;
-            TextXAlignment = (align == 'Center')
-                and Enum.TextXAlignment.Center
-                or  Enum.TextXAlignment.Left;
-            TextSize = Library.FontSize;
-            ZIndex   = 103;
-            Parent   = InnerFrame;
+            Position = UDim2.new(0, 4, 0, 0);
+            Size = UDim2.new(1, -4, 1, 0);
+            Text = Text;
+            TextXAlignment = Enum.TextXAlignment.Left;
+            TextSize = 14;
+            ZIndex = 103;
+            Parent = InnerFrame;
         });
-        local AccentBar = Library:Create('Frame', {
+        local LeftColor = Library:Create('Frame', {
             BackgroundColor3 = Library.AccentColor;
-            BorderSizePixel  = 0;
-            ZIndex           = 104;
-            Parent           = NotifyOuter;
+            BorderSizePixel = 0;
+            Position = UDim2.new(0, -1, 0, -1);
+            Size = UDim2.new(0, 3, 1, 2);
+            ZIndex = 104;
+            Parent = NotifyOuter;
         });
-        if barSide == 'Left' then
-            AccentBar.Position = UDim2.new(0, -1, 0, -1)
-            AccentBar.Size     = UDim2.new(0, BAR_THIN, 1, 2)
-        elseif barSide == 'Right' then
-            AccentBar.Position = UDim2.new(1, -BAR_THIN + 1, 0, -1)
-            AccentBar.Size     = UDim2.new(0, BAR_THIN, 1, 2)
-        elseif barSide == 'Top' then
-            AccentBar.Position = UDim2.new(0, -1, 0, -1)
-            AccentBar.Size     = UDim2.new(1, 2, 0, BAR_THICK)
-        elseif barSide == 'Bottom' then
-            AccentBar.Position = UDim2.new(0, -1, 1, -BAR_THICK + 1)
-            AccentBar.Size     = UDim2.new(1, 2, 0, BAR_THICK)
-        end
-        Library:AddToRegistry(AccentBar, {
+        Library:AddToRegistry(LeftColor, {
             BackgroundColor3 = 'AccentColor';
         }, true);
-        local finalWidth = XSize + 8 + 4
-        if barSide == 'Left' or barSide == 'Right' then
-            finalWidth = finalWidth + BAR_THIN
-        end
-
-        local slideAxis, slideFromSign
-        local alignEff = align
-        if alignEff == 'Center' then
-            slideAxis = 'Y'
-            slideFromSign = (barSide == 'Bottom') and 1 or -1
-        elseif alignEff == 'Right' then
-            slideAxis = 'X'
-            slideFromSign = 1
-        else
-            slideAxis = 'X'
-            slideFromSign = -1
-        end
-        local startOffset = (slideAxis == 'X')
-            and UDim2.new(0, slideFromSign * finalWidth, 0, 0)
-            or  UDim2.new(0, 0, 0, slideFromSign * YSize)
-        NotifyOuter.Position = NotifyOuter.Position + startOffset
-        NotifyOuter.AnchorPoint = NotifyOuter.AnchorPoint or Vector2.new(0, 0)
-        local targetPos = NotifyOuter.Position - startOffset
-        local tweenIn = TweenService:Create(NotifyOuter, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPos})
-        tweenIn:Play()
+        pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, XSize + 8 + 4, 0, YSize), 'Out', 'Quad', 0.4, true);
         task.spawn(function()
-            wait(Time or 5);
-            local exitOffset = (slideAxis == 'X')
-                and UDim2.new(0, slideFromSign * (finalWidth + 8), 0, 0)
-                or  UDim2.new(0, 0, 0, slideFromSign * (YSize + 8))
-            local tweenOut = TweenService:Create(NotifyOuter, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = targetPos + exitOffset})
-            tweenOut:Play()
-            tweenOut.Completed:Wait()
+            task.wait(Time or 5);
+            pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, 0, 0, YSize), 'Out', 'Quad', 0.4, true);
+            task.wait(0.4);
             NotifyOuter:Destroy();
         end);
     end
