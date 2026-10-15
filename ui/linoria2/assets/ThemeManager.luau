@@ -1,6 +1,6 @@
 local httpService = game:GetService('HttpService')
 local ThemeManager = {} do
-	ThemeManager.Folder = 'Xyro/rivals/'
+	ThemeManager.Folder = 'Xyro/rivals/' -- yea fuck you guys, change this if u want a custom one 🤔☠️
 
 	ThemeManager.Library = nil
 
