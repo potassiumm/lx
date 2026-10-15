@@ -1666,6 +1666,7 @@ do
             local function WaitForConfirm(Timeout)
                 local bindable = Instance.new('BindableEvent')
                 local done = false
+                local armClock = os.clock()
                 local connection
                 local function Resolve(value)
                     if done then return end
@@ -1676,10 +1677,18 @@ do
                     end
                     bindable:Fire(value)
                 end
-                connection = Button.Outer.InputBegan:Connect(function(Input)
-                    if ValidateClick(Input) then
-                        Resolve(true)
+                connection = InputService.InputBegan:Connect(function(Input)
+                    if os.clock() - armClock < 0.1 then
+                        return
                     end
+                    if Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch then
+                        return
+                    end
+                    local AbsPos, AbsSize = Button.Outer.AbsolutePosition, Button.Outer.AbsoluteSize;
+                    local Pos = Input.Position;
+                    local OverButton = Pos.X >= AbsPos.X and Pos.X <= AbsPos.X + AbsSize.X
+                        and Pos.Y >= AbsPos.Y and Pos.Y <= AbsPos.Y + AbsSize.Y;
+                    Resolve(OverButton and ValidateClick(Input));
                 end)
                 task.delay(Timeout, function()
                     Resolve(false)
