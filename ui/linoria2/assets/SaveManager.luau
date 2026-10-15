@@ -1,7 +1,7 @@
 local httpService = game:GetService('HttpService')
 
 local SaveManager = {} do
-	SaveManager.Folder = 'Xyro/rivals/' -- yea fuck you guys, change this if u want a custom one 🤔☠️
+	SaveManager.Folder = 'Xyro/rivals/'
 	SaveManager.Ignore = {}
 	SaveManager.Parser = {
 		Toggle = {
@@ -202,15 +202,15 @@ local SaveManager = {} do
 
 		local section = tab:AddRightGroupbox('configuration')
 
-		section:AddInput('SaveManager_ConfigName',    { Text = 'config name' })
+		section:AddInput('SaveManager_ConfigName', { Text = 'config name' })
 		section:AddDropdown('SaveManager_ConfigList', { Text = 'config list', Values = self:RefreshConfigList(), AllowNull = true })
 
 		section:AddDivider()
 
-		section:AddButton({ Text = 'create config', DoubleClick = true, Func = function()
+		local createBtn = section:AddButton({ Text = 'create', DoubleClick = true, Func = function()
 			local name = Options.SaveManager_ConfigName.Value
 
-			if name:gsub(' ', '') == '' then 
+			if name:gsub(' ', '') == '' then
 				return self.Library:Notify('invalid config name (empty)', 2)
 			end
 
@@ -224,7 +224,7 @@ local SaveManager = {} do
 			Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
 			Options.SaveManager_ConfigList:SetValue(nil)
 		end})
-		section:AddButton({ Text = 'load config', DoubleClick = true, Func = function()
+		createBtn:AddButton({ Text = 'load', DoubleClick = true, Func = function()
 			local name = Options.SaveManager_ConfigList.Value
 
 			local success, err = self:Load(name)
@@ -235,7 +235,7 @@ local SaveManager = {} do
 			self.Library:Notify(string.format('loaded config %q', name))
 		end})
 
-		section:AddButton({ Text = 'overwrite config', DoubleClick = true, Func = function()
+		local overwriteBtn = section:AddButton({ Text = 'overwrite', DoubleClick = true, Func = function()
 			local name = Options.SaveManager_ConfigList.Value
 
 			local success, err = self:Save(name)
@@ -245,20 +245,18 @@ local SaveManager = {} do
 
 			self.Library:Notify(string.format('overwrote config %q', name))
 		end})
-
-		section:AddButton('refresh list', function()
+		overwriteBtn:AddButton({ Text = 'refresh list', Func = function()
 			Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
 			Options.SaveManager_ConfigList:SetValue(nil)
-		end)
+		end})
 
-		section:AddButton('set as autoload', function()
+		local autoloadBtn = section:AddButton({ Text = 'set as autoload', Func = function()
 			local name = Options.SaveManager_ConfigList.Value
 			writefile(self.Folder .. '/settings/autoload.txt', name)
 			SaveManager.AutoloadLabel:SetText('current autoload config: ' .. name)
 			self.Library:Notify(string.format('set %q to auto load', name))
-		end)
-
-		section:AddButton('remove autoload', function()
+		end})
+		autoloadBtn:AddButton({ Text = 'remove autoload', Func = function()
 			local autoload_path = self.Folder .. '/settings/autoload.txt'
 			if not isfile(autoload_path) then
 				return self.Library:Notify('no autoload config set', 2)
@@ -269,7 +267,53 @@ local SaveManager = {} do
 			end
 			SaveManager.AutoloadLabel:SetText('current autoload config: none')
 			self.Library:Notify('autoload removed')
-		end)
+		end})
+
+		section:AddDivider()
+
+		section:AddInput('SaveManager_ConfigString', { Text = 'config string (paste)', Default = '' })
+		local pasteBtn = section:AddButton({ Text = 'load string', DoubleClick = true, Func = function()
+			local raw = Options.SaveManager_ConfigString.Value
+			if type(raw) ~= 'string' or raw:gsub('%s', '') == '' then
+				return self.Library:Notify('no config string pasted', 2)
+			end
+
+			local ok, data = pcall(httpService.JSONDecode, httpService, raw)
+			if not ok or type(data) ~= 'table' or type(data.objects) ~= 'table' then
+				return self.Library:Notify('invalid config string', 3)
+			end
+
+			for _, option in next, data.objects do
+				if self.Parser[option.type] then
+					task.spawn(function() self.Parser[option.type].Load(option.idx, option) end)
+				end
+			end
+
+			self.Library:Notify('loaded config from string')
+		end})
+		pasteBtn:AddButton({ Text = 'copy string', Func = function()
+			local name = Options.SaveManager_ConfigList.Value
+			if not name then
+				return self.Library:Notify('no config selected', 2)
+			end
+
+			local path = self.Folder .. '/settings/' .. name .. '.json'
+			if not isfile(path) then
+				return self.Library:Notify('invalid file', 2)
+			end
+
+			local ok, raw = pcall(readfile, path)
+			if not ok then
+				return self.Library:Notify('failed to read config', 3)
+			end
+
+			if type(setclipboard) == 'function' then
+				setclipboard(raw)
+				self.Library:Notify(string.format('copied config %q to clipboard', name))
+			else
+				self.Library:Notify('clipboard unavailable', 3)
+			end
+		end})
 
 		SaveManager.AutoloadLabel = section:AddLabel('current autoload config: none', true)
 
@@ -278,7 +322,7 @@ local SaveManager = {} do
 			SaveManager.AutoloadLabel:SetText('current autoload config: ' .. name)
 		end
 
-		SaveManager:SetIgnoreIndexes({ 'SaveManager_ConfigList', 'SaveManager_ConfigName' })
+		SaveManager:SetIgnoreIndexes({ 'SaveManager_ConfigList', 'SaveManager_ConfigName', 'SaveManager_ConfigString' })
 	end
 
 	SaveManager:BuildFolderTree()
