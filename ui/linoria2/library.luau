@@ -42,12 +42,12 @@ local Library = {
     NotifyConfig = {
         Alignment = 'Center';
         BarSide = 'Bottom';
-        PositionX = 0;
-        PositionY = 40;
-        ScaleX = 0;
-        ScaleY = 0;
-        AnchorPoint = nil;
-        Transparency = 0;
+        PositionX = 50;
+        PositionY = 60;
+        ScaleX = 0.5;
+        ScaleY = 0.6;
+        AnchorPoint = Vector2.new(0.5, 0.5);
+        Transparency = 0.25;
         ClipDescendants = true;
         ClipPastDistance = 200;
         ForceColor = false;
@@ -348,13 +348,20 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         Tooltip.Visible = false
     end)
     local function hide_if_hidden()
-        if not HoverInstance.Visible or not HoverInstance:IsDescendantOf(Library.ScreenGui) then
-            IsHovering = false
-            Tooltip.Visible = false
-        end
+        IsHovering = false
+        Tooltip.Visible = false
     end
-    HoverInstance:GetPropertyChangedSignal('Visible'):Connect(hide_if_hidden)
+    HoverInstance:GetPropertyChangedSignal('Visible'):Connect(function()
+        if not HoverInstance.Visible then
+            hide_if_hidden()
+        end
+    end)
     table.insert(Library.TooltipResetters, hide_if_hidden)
+end
+function Library:HideAllTooltips()
+    for _, resetter in ipairs(Library.TooltipResetters) do
+        pcall(resetter)
+    end
 end
 function Library:OnHighlight(HighlightInstance, Instance, Properties, PropertiesDefault)
     HighlightInstance.MouseEnter:Connect(function()
@@ -486,8 +493,10 @@ end
 Library:OnUnload(function()
     pcall(function()
         local Lighting = game:GetService("Lighting")
-        local blur = Lighting:FindFirstChild("XyroMenuBlur")
-        if blur then blur:Destroy() end
+        for _, Name in next, { "menublur", "XyroMenuBlur" } do
+            local blur = Lighting:FindFirstChild(Name)
+            if blur then blur:Destroy() end
+        end
     end)
 end)
 Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(Instance)
@@ -1090,7 +1099,7 @@ do
         local DisplayLabel = Library:CreateLabel({
             Size = UDim2.new(1, 0, 1, 0);
             TextSize = Library.FontSize - 1;
-            Text = (Info.Default == 'None' or Info.Default == '' or Info.Default == '--') and '…' or Info.Default;
+            Text = (Info.Default == 'None' or Info.Default == '' or Info.Default == '--') and '--' or Info.Default;
             TextWrapped = true;
             ZIndex = 8;
             Parent = PickInner;
@@ -1192,7 +1201,6 @@ do
                 if Library.RegistryMap[Btn] then
                     Library.RegistryMap[Btn].Properties.TextColor3 = 'AccentColor';
                 end
-                ModeSelectOuter.Visible = false;
             end;
             function ModeButton:Deselect()
                 Btn.TextColor3 = Library.FontColor;
@@ -1227,7 +1235,7 @@ do
                 if KeybindEntry then KeybindEntry.Visible = false end
                 return;
             end;
-            local displayKey = (RawKey == 'None' or RawKey == '' or RawKey == '--') and '…' or RawKey
+            local displayKey = (RawKey == 'None' or RawKey == '' or RawKey == '--') and '--' or RawKey
             ContainerLabel.Text = string.format('[%s] %s (%s)', displayKey, Info.Text, KeyPicker.Mode);
             local kbMode = Library.KeybindMode or 'All'
             if kbMode == 'Active' then
@@ -1281,7 +1289,7 @@ do
         end;
         function KeyPicker:SetValue(Data)
             local Key, Mode = Data[1], Data[2];
-            DisplayLabel.Text = (Key == 'None' or Key == '' or Key == '--') and '…' or Key;
+            DisplayLabel.Text = (Key == 'None' or Key == '' or Key == '--') and '--' or Key;
             KeyPicker.Value = Key;
             if ModeButtons[Mode] then
                 ModeButtons[Mode]:Select();
@@ -1324,15 +1332,12 @@ do
             Library.PickingKeybind = true;
             DisplayLabel.Text = '';
             local Break;
-            local Text = '';
+            local Dots = { '.', '..', '...' };
+            local Step = 1;
             task.spawn(function()
                 while (not Break) do
-                    if Text == '…' then
-                        Text = '';
-                    end;
-                    Text = Text .. '.';
-                    if Text == '...' then Text = '…' end
-                    DisplayLabel.Text = Text;
+                    DisplayLabel.Text = Dots[Step];
+                    Step = (Step % #Dots) + 1;
                     wait(0.4);
                 end;
             end);
@@ -2449,7 +2454,7 @@ do
             Position = UDim2.new(0, 5, 0, 0);
             Size = UDim2.new(1, -22, 1, 0);
             TextSize = Library.FontSize;
-            Text = '…';
+            Text = '--';
             TextXAlignment = Enum.TextXAlignment.Left;
             TextWrapped = true;
             ZIndex = 7;
@@ -2471,7 +2476,7 @@ do
             Parent = ScreenGui;
         });
         local function RecalculateListPosition()
-            ListOuter.Position = UDim2.fromOffset(DropdownOuter.AbsolutePosition.X, DropdownOuter.AbsolutePosition.Y + DropdownOuter.Size.Y.Offset + 1);
+            ListOuter.Position = UDim2.fromOffset(DropdownOuter.AbsolutePosition.X, DropdownOuter.AbsolutePosition.Y + DropdownOuter.Size.Y.Offset + 2);
         end;
         local function RecalculateListSize(YSize)
             ListOuter.Size = UDim2.fromOffset(DropdownOuter.AbsoluteSize.X, YSize or (MAX_DROPDOWN_ITEMS * 20 + 2))
@@ -2526,7 +2531,7 @@ do
             else
                 Str = Dropdown.Value or '';
             end;
-            ItemList.Text = (Str == '' and '…' or Str);
+            ItemList.Text = (Str == '' and '--' or Str);
         end;
         function Dropdown:GetActiveValues()
             if Info.Multi then
@@ -2795,8 +2800,10 @@ end;
 do
     Library.NotificationArea = Library:Create('Frame', {
         BackgroundTransparency = 1;
-        Position = UDim2.new(0, Library.NotifyConfig.PositionX, 0, Library.NotifyConfig.PositionY);
-        Size = UDim2.new(0, 300, 1, -Library.NotifyConfig.PositionY);
+        AnchorPoint = Library.NotifyConfig.AnchorPoint or Vector2.new(0.5, 0.5);
+        Position = UDim2.new(Library.NotifyConfig.ScaleX or 0.5, Library.NotifyConfig.PositionX or 0, Library.NotifyConfig.ScaleY or 0.6, Library.NotifyConfig.PositionY or 0);
+        Size = UDim2.new(0, 300, 0, Library.NotifyConfig.ClipPastDistance or 200);
+        ClipsDescendants = true;
         ZIndex = 100;
         Parent = ScreenGui;
     });
@@ -2811,36 +2818,26 @@ do
         local cfg = Library.NotifyConfig
         local area = Library.NotificationArea
         local layout = Library.NotifLayout
-        local scaleX = math.clamp(cfg.ScaleX or 0, 0, 1)
-        local scaleY = math.clamp(cfg.ScaleY or 0, 0, 1)
-        if scaleX > 0 or scaleY > 0 then
-            local cam = workspace.CurrentCamera
-            local viewport = cam and cam.ViewportSize or Vector2.new(1920, 1080)
-            area.Position = UDim2.new(scaleX, cfg.PositionX or 0, scaleY, cfg.PositionY or 40)
-            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
+        local scaleX = tonumber(cfg.ScaleX)
+        local scaleY = tonumber(cfg.ScaleY)
+        local anchor = cfg.AnchorPoint or Vector2.new(0.5, 0.5)
+        area.AnchorPoint = anchor
+        if scaleX ~= nil and scaleY ~= nil then
+            area.Position = UDim2.new(math.clamp(scaleX, 0, 1), cfg.PositionX or 0, math.clamp(scaleY, 0, 1), cfg.PositionY or 0)
         else
-            area.Position = UDim2.new(0, cfg.PositionX, 0, cfg.PositionY)
-            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
+            area.Position = UDim2.new(0, cfg.PositionX or 0, 0, cfg.PositionY or 0)
         end
-        area.Size     = UDim2.new(0, 300, 1, -cfg.PositionY)
-        local align = cfg.Alignment or 'Left'
+        local align = cfg.Alignment or 'Center'
         if align == 'Left' then
             layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
         elseif align == 'Right' then
             layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
-        elseif align == 'Center' then
+        else
             layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-            area.AnchorPoint = cfg.AnchorPoint or Vector2.new(0, 0)
         end
-        if cfg.BarSide == 'Top' or cfg.BarSide == 'Bottom' then
-            area.Size = UDim2.new(1, -8, 1, -cfg.PositionY)
-        end
+        layout.VerticalAlignment = Enum.VerticalAlignment.Top
+        area.Size = UDim2.new(0, 300, 0, math.max(tonumber(cfg.ClipPastDistance) or 200, 1))
         area.ClipsDescendants = cfg.ClipDescendants ~= false
-        if area.ClipsDescendants and (tonumber(cfg.ClipPastDistance) or 0) > 0 then
-            area.Size = UDim2.new(area.Size.X.Scale, area.Size.X.Offset, 0, math.floor(cfg.ClipPastDistance))
-        end
     end
     function Library:SetNotificationPosition(config)
         if type(config) ~= 'table' then return end
@@ -2891,7 +2888,7 @@ do
             LayoutOrder = Library._NotifyOrder;
             Size = UDim2.new(0, 0, 0, YSize);
             ClipsDescendants = style.ClipDescendants ~= false;
-            Transparency = transparency;
+            BackgroundTransparency = transparency;
             ZIndex = 100;
             Parent = Library.NotificationArea;
         });
@@ -2901,7 +2898,7 @@ do
             BorderColor3 = borderColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
-            Transparency = transparency;
+            BackgroundTransparency = transparency;
             ZIndex = 101;
             Parent = NotifyOuter;
         });
@@ -2912,8 +2909,9 @@ do
         local InnerFrame = Library:Create('Frame', {
             BackgroundColor3 = Color3.new(1, 1, 1);
             BorderSizePixel = 0;
-            Size = UDim2.new(1, 0, 1, 0);
-            Transparency = transparency;
+            Position = UDim2.new(0, 1, 0, 1);
+            Size = UDim2.new(1, -2, 1, -2);
+            BackgroundTransparency = transparency;
             ZIndex = 102;
             Parent = NotifyInner;
         });
@@ -3188,6 +3186,16 @@ do
     })
     Library.KeybindFrame = KeybindOuter;
     Library.KeybindContainer = KeybindContainer;
+    Library.KeybindNoneLabel = Library:CreateLabel({
+        Position = UDim2.new(0, 2, 0, 0),
+        Size = UDim2.new(1, -4, 0, 18);
+        TextSize = Library.FontSize - 1;
+        TextXAlignment = Enum.TextXAlignment.Left;
+        Text = '[ none ]';
+        Visible = false;
+        ZIndex = 111;
+        Parent = KeybindContainer,
+    }, true)
     Library:MakeDraggable(KeybindOuter);
 end
 function Library:SetKeybindMode(Mode)
@@ -3197,14 +3205,24 @@ function Library:SetKeybindMode(Mode)
     Library:RefreshKeybinds()
 end
 function Library:RefreshKeybinds()
+    local Visible = 0
     for _, kp in ipairs(Library.KeyPickerList) do
         if not kp.NoUI and kp.Value ~= nil and kp.Value ~= '' and kp.Value ~= 'Unknown' and kp.Value ~= 'None' then
             pcall(function() kp:Update() end)
+            if kp.KeybindEntry and kp.KeybindEntry.Visible then
+                Visible = Visible + 1
+            end
         else
             pcall(function()
                 if kp.KeybindEntry then kp.KeybindEntry.Visible = false end
             end)
         end
+    end
+    if Library.KeybindNoneLabel then
+        Library.KeybindNoneLabel.Visible = (Visible == 0)
+    end
+    if Library.KeybindFrame and Visible == 0 then
+        Library.KeybindFrame.Size = UDim2.new(0, 210, 0, 20 + 18 + 5)
     end
 end
 function Library:SetWatermarkVisibility(Bool)
@@ -3569,6 +3587,7 @@ function Library:CreateWindow(...)
                 Tab:HideTab();
             end;
             Library:CloseAllOpenMenus();
+            Library:HideAllTooltips();
             Blocker.BackgroundTransparency = 0;
             TabFrame.Visible = true;
             TabIndicator.Visible = true;
@@ -3715,9 +3734,9 @@ function Library:CreateWindow(...)
                 local TabHighlight = Library:Create('Frame', {
                     BackgroundColor3 = Library.AccentColor;
                     BorderSizePixel = 0;
-                    Size = UDim2.new(1, 0, 0, 2);
+                    Size = UDim2.new(1, 0, 0, 1);
                     Visible = false;
-                    ZIndex = 10;
+                    ZIndex = 8;
                     Parent = Button;
                 });
                 Library:AddToRegistry(TabHighlight, {
@@ -3875,9 +3894,7 @@ function Library:CreateWindow(...)
         end);
         if not Library.Toggled then
             Library:CloseAllOpenMenus();
-            for _, resetter in ipairs(Library.TooltipResetters) do
-                pcall(resetter);
-            end;
+            Library:HideAllTooltips();
         end;
         if Library.Toggled and not Library.CursorLoopRunning then
             Library.CursorLoopRunning = true
