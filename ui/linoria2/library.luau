@@ -42,10 +42,10 @@ local Library = {
     NotifyConfig = {
         Alignment = 'Center';
         BarSide = 'Bottom';
-        PositionX = 50;
-        PositionY = 60;
+        PositionX = 0;
+        PositionY = 0;
         ScaleX = 0.5;
-        ScaleY = 0.6;
+        ScaleY = 0.8;
         AnchorPoint = Vector2.new(0.5, 0.5);
         Transparency = 0.25;
         ClipDescendants = true;
@@ -1099,7 +1099,7 @@ do
         local DisplayLabel = Library:CreateLabel({
             Size = UDim2.new(1, 0, 1, 0);
             TextSize = Library.FontSize - 1;
-            Text = (Info.Default == 'None' or Info.Default == '' or Info.Default == '--') and '--' or Info.Default;
+            Text = (Info.Default == 'None' or Info.Default == '' or Info.Default == '--' or Info.Default == 'Unknown') and '...' or Info.Default;
             TextWrapped = true;
             ZIndex = 8;
             Parent = PickInner;
@@ -1130,24 +1130,20 @@ do
             Parent = ModeSelectInner;
         });
         local function updateModeSelectPos()
-            local inset = Vector2.zero
-            pcall(function()
-                inset = game:GetService("GuiService"):GetGuiInset()
-            end)
             local abs = PickOuter.AbsolutePosition
             local asz = PickOuter.AbsoluteSize
             local menuH = ModeSelectOuter.Size.Y.Offset
             local menuW = ModeSelectOuter.Size.X.Offset
             local cam = workspace.CurrentCamera
-            local vw = (cam and cam.ViewportSize.X or 1920) - inset.X
-            local vh = (cam and cam.ViewportSize.Y or 1080) - inset.Y
-            local x = abs.X + asz.X + 4 - inset.X
-            local y = abs.Y + asz.Y + 4 - inset.Y
+            local vw = (cam and cam.ViewportSize.X or 1920)
+            local vh = (cam and cam.ViewportSize.Y or 1080)
+            local x = abs.X + asz.X - menuW
+            local y = abs.Y + asz.Y + 2
             if x + menuW > vw - 4 then
-                x = abs.X - menuW - 4 - inset.X
+                x = vw - 4 - menuW
             end
             if y + menuH > vh - 4 then
-                y = abs.Y - menuH - 4 - inset.Y
+                y = abs.Y - menuH - 2
             end
             if x < 4 then x = 4 end
             if y < 4 then y = 4 end
@@ -1235,7 +1231,7 @@ do
                 if KeybindEntry then KeybindEntry.Visible = false end
                 return;
             end;
-            local displayKey = (RawKey == 'None' or RawKey == '' or RawKey == '--') and '--' or RawKey
+            local displayKey = (RawKey == 'None' or RawKey == '' or RawKey == '--' or RawKey == 'Unknown') and '...' or RawKey
             ContainerLabel.Text = string.format('[%s] %s (%s)', displayKey, Info.Text, KeyPicker.Mode);
             local kbMode = Library.KeybindMode or 'All'
             if kbMode == 'Active' then
@@ -1266,7 +1262,20 @@ do
                     end
                 end;
             end;
-            Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 10 + 15, 210), 0, YSize + 23)
+            local shown = 0
+            for _, F in next, Library.KeybindContainer:GetChildren() do
+                if F:IsA('Frame') and F.Visible then
+                    shown = shown + 1
+                end
+            end
+            if Library.KeybindNoneLabel then
+                Library.KeybindNoneLabel.Visible = (shown == 0)
+            end
+            if shown == 0 then
+                Library.KeybindFrame.Size = UDim2.new(0, 210, 0, 43)
+            else
+                Library.KeybindFrame.Size = UDim2.new(0, math.max(XSize + 10 + 15, 210), 0, YSize + 23)
+            end
         end;
         function KeyPicker:GetState()
             if KeyPicker.Mode == 'Always' then
@@ -1289,7 +1298,7 @@ do
         end;
         function KeyPicker:SetValue(Data)
             local Key, Mode = Data[1], Data[2];
-            DisplayLabel.Text = (Key == 'None' or Key == '' or Key == '--') and '--' or Key;
+            DisplayLabel.Text = (Key == 'None' or Key == '' or Key == '--' or Key == 'Unknown') and '...' or Key;
             KeyPicker.Value = Key;
             if ModeButtons[Mode] then
                 ModeButtons[Mode]:Select();
@@ -1322,7 +1331,12 @@ do
         local LongPressTime = Info.LongPressTime or 0.55;
         local TouchMoveThreshold = Info.TouchMoveThreshold or 10;
         local function OpenModeSelect()
-            updateModeSelectPos(); ModeSelectOuter.Visible = true;
+            if ModeSelectOuter.Visible then
+                ModeSelectOuter.Visible = false;
+                return;
+            end;
+            updateModeSelectPos();
+            ModeSelectOuter.Visible = true;
         end;
         local function BeginPicking()
             if Picking then
@@ -2476,7 +2490,7 @@ do
             Parent = ScreenGui;
         });
         local function RecalculateListPosition()
-            ListOuter.Position = UDim2.fromOffset(DropdownOuter.AbsolutePosition.X, DropdownOuter.AbsolutePosition.Y + DropdownOuter.Size.Y.Offset + 2);
+            ListOuter.Position = UDim2.fromOffset(DropdownOuter.AbsolutePosition.X, DropdownOuter.AbsolutePosition.Y + DropdownOuter.Size.Y.Offset + 1);
         end;
         local function RecalculateListSize(YSize)
             ListOuter.Size = UDim2.fromOffset(DropdownOuter.AbsoluteSize.X, YSize or (MAX_DROPDOWN_ITEMS * 20 + 2))
@@ -2645,7 +2659,9 @@ do
         end;
         function Dropdown:OpenDropdown()
             ListOuter.Visible = true;
-            Library.OpenedFrames[ListOuter] = true;
+            Library.OpenedFrames[ListOuter] = function()
+                Dropdown:CloseDropdown();
+            end;
             DropdownArrow.Rotation = 90; 
         end;
         function Dropdown:CloseDropdown()
@@ -2869,6 +2885,12 @@ do
 
         local XSize, YSize = Library:GetTextBounds(Text, Library.Font, 14);
         YSize = YSize + 7
+        local TargetW = XSize + 8 + 4;
+        local WrapWidth = TargetW > 300;
+        if WrapWidth then
+            TargetW = 300;
+        end
+        local FinalH = YSize;
 
         local outerColor = Library.BackgroundColor;
         local borderColor = Library.OutlineColor;
@@ -2888,7 +2910,7 @@ do
             LayoutOrder = Library._NotifyOrder;
             Size = UDim2.new(0, 0, 0, YSize);
             ClipsDescendants = style.ClipDescendants ~= false;
-            BackgroundTransparency = transparency;
+            BackgroundTransparency = 1;
             ZIndex = 100;
             Parent = Library.NotificationArea;
         });
@@ -2898,7 +2920,7 @@ do
             BorderColor3 = borderColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
-            BackgroundTransparency = transparency;
+            BackgroundTransparency = 1;
             ZIndex = 101;
             Parent = NotifyOuter;
         });
@@ -2938,6 +2960,7 @@ do
             TextColor3 = textColor;
             TextXAlignment = Enum.TextXAlignment.Left;
             TextSize = 14;
+            TextWrapped = true;
             ZIndex = 103;
             Parent = InnerFrame;
         });
@@ -2952,10 +2975,20 @@ do
         });
         Library:AddToRegistry(Bar, { BackgroundColor3 = 'AccentColor' }, true);
 
-        pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, XSize + 8 + 4, 0, YSize), 'Out', 'Quad', 0.4, true);
+        pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, TargetW, 0, YSize), 'Out', 'Quad', 0.4, true);
+        if WrapWidth then
+            task.defer(function()
+                task.wait();
+                local WrappedHeight = NotifyLabel.TextBounds.Y + 7;
+                if WrappedHeight > YSize then
+                    FinalH = WrappedHeight;
+                    pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, TargetW, 0, FinalH), 'Out', 'Quad', 0.4, true);
+                end;
+            end);
+        end
         task.spawn(function()
             task.wait(Time or 5);
-            pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, 0, 0, YSize), 'Out', 'Quad', 0.4, true);
+            pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, 0, 0, FinalH), 'Out', 'Quad', 0.4, true);
             task.wait(0.4);
             NotifyOuter:Destroy();
         end);
@@ -3076,7 +3109,7 @@ end
 do
     local WatermarkOuter = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
-        Position = UDim2.new(0, 100, 0, -25);
+        Position = UDim2.new(0, 100, 0, -15);
         Size = UDim2.new(0, 213, 0, 20);
         ZIndex = 200;
         Visible = false;
@@ -3244,7 +3277,7 @@ function Library:CreateWindow(...)
         Config.AutoShow = Arguments[2] or false;
     end
     if type(Config.Title) ~= 'string' then Config.Title = 'No title' end
-    if type(Config.TabPadding) ~= 'number' then Config.TabPadding = 0 end
+    if type(Config.TabPadding) ~= 'number' then Config.TabPadding = 4 end
     if type(Config.MenuFadeTime) ~= 'number' then Config.MenuFadeTime = 0.2 end
     if typeof(Config.Size) ~= 'UDim2' then Config.Size = UDim2.fromOffset(550, 650) end
     if typeof(Config.Position) ~= 'UDim2' then Config.Position = UDim2.fromOffset(175, 50) end
@@ -3502,14 +3535,6 @@ function Library:CreateWindow(...)
             Parent = TabButton;
         });
         Library:AddToRegistry(TabIndicator, { BackgroundColor3 = 'AccentColor' });
-        local TabHover = Library:Create('Frame', {
-            BackgroundColor3 = Color3.new(1, 1, 1);
-            BackgroundTransparency = 1;
-            BorderSizePixel = 0;
-            Size = UDim2.new(1, 0, 1, 0);
-            ZIndex = 2;
-            Parent = TabButton;
-        });
         local TabButtonLabel = Library:CreateLabel({
             Position = UDim2.new(0, 0, 0, 0);
             Size = UDim2.new(1, 0, 1, -1);
@@ -3517,13 +3542,6 @@ function Library:CreateWindow(...)
             ZIndex = 1;
             Parent = TabButton;
         });
-        local TabHoverInfo = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
-        TabButton.MouseEnter:Connect(function()
-            TweenService:Create(TabHover, TabHoverInfo, { BackgroundTransparency = 0.9 }):Play();
-        end);
-        TabButton.MouseLeave:Connect(function()
-            TweenService:Create(TabHover, TabHoverInfo, { BackgroundTransparency = 1 }):Play();
-        end);
         local Blocker = Library:Create('Frame', {
             BackgroundTransparency = 1;
             Size = UDim2.new(0, 0, 0, 0);
@@ -3861,6 +3879,10 @@ function Library:CreateWindow(...)
     });
     function Library:CloseAllOpenMenus()
         for Frame in next, Library.OpenedFrames do
+            local Entry = Library.OpenedFrames[Frame];
+            if type(Entry) == 'function' then
+                pcall(Entry);
+            end
             if Frame and Frame.Visible then
                 Frame.Visible = false;
             end
