@@ -1,20 +1,88 @@
 local httpService = game:GetService('HttpService')
 local ThemeManager = {} do
-	ThemeManager.Folder = 'LinoriaLibSettings'
-	-- if not isfolder(ThemeManager.Folder) then makefolder(ThemeManager.Folder) end
+	ThemeManager.Folder = 'UELibSettings'
 
 	ThemeManager.Library = nil
-	ThemeManager.BuiltInThemes = {
-		['Default']         = { 1, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"181818","AccentColor":"4777b6","BackgroundColor":"141414","OutlineColor":"2a2a2a"}') },
-		['BBot'] 			= { 2, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1e1e","AccentColor":"7e48a3","BackgroundColor":"232323","OutlineColor":"141414"}') },
-		['Fatality']		= { 3, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"1e1842","AccentColor":"c50754","BackgroundColor":"191335","OutlineColor":"3c355d"}') },
-		['Jester'] 			= { 4, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"242424","AccentColor":"db4467","BackgroundColor":"1c1c1c","OutlineColor":"373737"}') },
-		['Mint'] 			= { 5, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"242424","AccentColor":"3db488","BackgroundColor":"1c1c1c","OutlineColor":"373737"}') },
-		['Tokyo Night'] 	= { 6, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"191925","AccentColor":"6759b3","BackgroundColor":"16161f","OutlineColor":"323232"}') },
-		['Ubuntu'] 			= { 7, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"3e3e3e","AccentColor":"e2581e","BackgroundColor":"323232","OutlineColor":"191919"}') },
-		['Quartz'] 			= { 8, httpService:JSONDecode('{"FontColor":"ffffff","MainColor":"232330","AccentColor":"426e87","BackgroundColor":"1d1b26","OutlineColor":"27232f"}') },
-        ['Inkwell']         = { 9, httpService:JSONDecode('{"FontColor":"c5c3c3","MainColor":"000000","AccentColor":"ffffff","BackgroundColor":"000000","OutlineColor":"27232f"}') },
+
+	ThemeManager.ThemeFields = {
+		'FontColor',
+		'RiskColor',
+		'MainColor',
+		'AccentColor',
+		'BackgroundColor',
+		'OutlineColor',
+		'ItemType',
+		'BackColor',
+		'BackTransparency',
+		'BlurSize',
+		'Contrast',
+		'Saturation',
+		'Brightness',
+		'SwordColor',
+		'SwordTransparency',
+		'SwordReflectance',
+		'SwordMaterial',
+		'SwordSpeed',
 	}
+
+	local function decode(hex)
+		if type(hex) ~= 'string' then
+			return hex
+		end
+		local ok, col = pcall(Color3.fromHex, hex)
+		if ok then
+			return col
+		end
+		local r = tonumber(hex:sub(1, 2), 16) or 0
+		local g = tonumber(hex:sub(3, 4), 16) or 0
+		local b = tonumber(hex:sub(5, 6), 16) or 0
+		return Color3.fromRGB(r, g, b)
+	end
+
+	local function encode(value)
+		if typeof(value) == 'Color3' then
+			return value:ToHex()
+		end
+		return value
+	end
+
+	local THEMES_JSON = [[
+{"FontColor":"ffffff","MainColor":"131313","AccentColor":"a2cdff","BackgroundColor":"151515","OutlineColor":"212121","RiskColor":"ff7425",
+ "ItemType":"Unnamed Enhancements - discord.gg/enhancements",
+ "SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon",
+ "Contrast":"0","Saturation":"0","Brightness":"0",
+ "BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}
+	]]
+
+	ThemeManager.BuiltInThemes = {
+		['Default'] = { 1, httpService:JSONDecode(THEMES_JSON) },
+		['Tokyo Night'] = { 2, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"191925","AccentColor":"6956cb","BackgroundColor":"15151e","OutlineColor":"272727","RiskColor":"fb5f5f","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Nord'] = { 3, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"1c1e20","AccentColor":"9effc8","BackgroundColor":"1c1e20","OutlineColor":"24282d","RiskColor":"ff7a00","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Skeet'] = { 4, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"131313","AccentColor":"81ff54","BackgroundColor":"151515","OutlineColor":"2a2a2a","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Fatality'] = { 5, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"181537","AccentColor":"ca0756","BackgroundColor":"201c46","OutlineColor":"39335a","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Neverlose'] = { 6, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"0c1014","AccentColor":"01a3f1","BackgroundColor":"0c0f14","OutlineColor":"191919","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Onetap'] = { 7, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"1e1d22","AccentColor":"faa614","BackgroundColor":"18181c","OutlineColor":"313033","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Imgui'] = { 8, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"151617","AccentColor":"406ba8","BackgroundColor":"151617","OutlineColor":"242424","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Iniuria'] = { 9, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"1e1d1e","AccentColor":"c41275","BackgroundColor":"1e1d1e","OutlineColor":"33252b","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Primordial'] = { 10, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"181818","AccentColor":"d7a6b0","BackgroundColor":"1f1f1f","OutlineColor":"2a2a2a","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Monolith'] = { 11, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"141115","AccentColor":"c707bd","BackgroundColor":"171417","OutlineColor":"272427","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['V3rmillion'] = { 12, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"202020","AccentColor":"cd1818","BackgroundColor":"202020","OutlineColor":"2a2a2a","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+		['Dark'] = { 13, httpService:JSONDecode([[{"FontColor":"ffffff","MainColor":"0a0a0a","AccentColor":"5945ff","BackgroundColor":"0a0a0a","OutlineColor":"171717","RiskColor":"e50000","ItemType":"Unnamed Enhancements - discord.gg/enhancements","SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon","Contrast":"0","Saturation":"0","Brightness":"0","BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}]]) },
+	}
+
+	local function pushOption(key, value)
+		if not (Options and Options[key]) then
+			return
+		end
+		local option = Options[key]
+		if typeof(value) == 'Color3' then
+			if option.SetValueRGB then
+				option:SetValueRGB(value)
+			end
+		elseif option.SetValue then
+			option:SetValue(value)
+		end
+	end
 
 	function ThemeManager:ApplyTheme(theme)
 		local customThemeData = self:GetCustomTheme(theme)
@@ -22,14 +90,18 @@ local ThemeManager = {} do
 
 		if not data then return end
 
-		-- custom themes are just regular dictionaries instead of an array with { index, dictionary }
+		local scheme = customThemeData or data[2]
 
-		local scheme = data[2]
-		for idx, col in next, customThemeData or scheme do
-			self.Library[idx] = Color3.fromHex(col)
-			
-			if Options[idx] then
-				Options[idx]:SetValueRGB(Color3.fromHex(col))
+		for key, value in next, scheme do
+			if type(key) == 'string' and key:find('Color') then
+				local col = decode(value)
+				self.Library[key] = col
+				pushOption(key, col)
+			else
+				local coerced = tonumber(value)
+				if coerced == nil then coerced = value end
+				self.Library[key] = coerced
+				pushOption(key, coerced)
 			end
 		end
 
@@ -37,19 +109,20 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:ThemeUpdate()
-		-- This allows us to force apply themes without loading the themes tab :)
-		local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
-		for i, field in next, options do
+		for _, field in next, self.ThemeFields do
 			if Options and Options[field] then
-				self.Library[field] = Options[field].Value
+				local value = Options[field].Value
+				if value ~= nil then
+					self.Library[field] = value
+				end
 			end
 		end
 
-		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor);
+		self.Library.AccentColorDark = self.Library:GetDarkerColor(self.Library.AccentColor)
 		self.Library:UpdateColorsUsingRegistry()
 	end
 
-	function ThemeManager:LoadDefault()		
+	function ThemeManager:LoadDefault()
 		local theme = 'Default'
 		local content = isfile(self.Folder .. '/themes/default.txt') and readfile(self.Folder .. '/themes/default.txt')
 
@@ -59,10 +132,10 @@ local ThemeManager = {} do
 				theme = content
 			elseif self:GetCustomTheme(content) then
 				theme = content
-				isDefault = false;
+				isDefault = false
 			end
 		elseif self.BuiltInThemes[self.DefaultTheme] then
-		 	theme = self.DefaultTheme
+			theme = self.DefaultTheme
 		end
 
 		if isDefault then
@@ -77,14 +150,15 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:CreateThemeManager(groupbox)
-		groupbox:AddLabel('background color'):AddColorPicker('BackgroundColor', { Default = self.Library.BackgroundColor });
-		groupbox:AddLabel('main color')	:AddColorPicker('MainColor', { Default = self.Library.MainColor });
-		groupbox:AddLabel('accent color'):AddColorPicker('AccentColor', { Default = self.Library.AccentColor });
-		groupbox:AddLabel('outline color'):AddColorPicker('OutlineColor', { Default = self.Library.OutlineColor });
-		groupbox:AddLabel('font color')	:AddColorPicker('FontColor', { Default = self.Library.FontColor });
+		groupbox:AddLabel('background color'):AddColorPicker('BackgroundColor', { Default = self.Library.BackgroundColor })
+		groupbox:AddLabel('main color')    :AddColorPicker('MainColor',    { Default = self.Library.MainColor })
+		groupbox:AddLabel('accent color')  :AddColorPicker('AccentColor',  { Default = self.Library.AccentColor })
+		groupbox:AddLabel('outline color') :AddColorPicker('OutlineColor', { Default = self.Library.OutlineColor })
+		groupbox:AddLabel('font color')    :AddColorPicker('FontColor',    { Default = self.Library.FontColor })
+		groupbox:AddLabel('risk text color'):AddColorPicker('RiskColor',   { Default = self.Library.RiskColor })
 
 		local ThemesArray = {}
-		for Name, Theme in next, self.BuiltInThemes do
+		for Name in next, self.BuiltInThemes do
 			table.insert(ThemesArray, Name)
 		end
 
@@ -106,15 +180,16 @@ local ThemeManager = {} do
 		groupbox:AddInput('ThemeManager_CustomThemeName', { Text = 'custom theme name' })
 		groupbox:AddDropdown('ThemeManager_CustomThemeList', { Text = 'custom themes', Values = self:ReloadCustomThemes(), AllowNull = true, Default = 1 })
 		groupbox:AddDivider()
-		
-		groupbox:AddButton('save theme', function() 
+
+		groupbox:AddButton('save theme', function()
 			self:SaveCustomTheme(Options.ThemeManager_CustomThemeName.Value)
 
 			Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
 			Options.ThemeManager_CustomThemeList:SetValue(nil)
 		end)
-		groupbox:AddButton({ Text = 'load theme', DoubleClick = true, Func = function() 
-			self:ApplyTheme(Options.ThemeManager_CustomThemeList.Value) 
+
+		groupbox:AddButton({ Text = 'load theme', DoubleClick = true, Func = function()
+			self:ApplyTheme(Options.ThemeManager_CustomThemeList.Value)
 		end })
 
 		groupbox:AddButton({ Text = 'overwrite theme', DoubleClick = true, Func = function()
@@ -131,6 +206,9 @@ local ThemeManager = {} do
 			local name = Options.ThemeManager_CustomThemeList.Value
 			if name == nil or name == '' then return end
 			local path = self.Folder .. '/themes/' .. name
+			if not isfile(path) and isfile(path .. '.json') then
+				path = path .. '.json'
+			end
 			if isfile(path) then
 				pcall(delfile, path)
 				Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
@@ -152,17 +230,17 @@ local ThemeManager = {} do
 			self:ThemeUpdate()
 		end
 
-		Options.BackgroundColor:OnChanged(UpdateTheme)
-		Options.MainColor:OnChanged(UpdateTheme)
-		Options.AccentColor:OnChanged(UpdateTheme)
-		Options.OutlineColor:OnChanged(UpdateTheme)
-		Options.FontColor:OnChanged(UpdateTheme)
+		for _, field in next, self.ThemeFields do
+			if Options and Options[field] and Options[field].OnChanged then
+				Options[field]:OnChanged(UpdateTheme)
+			end
+		end
 	end
 
 	function ThemeManager:GetCustomTheme(file)
 		local path = self.Folder .. '/themes/' .. file
 		if not isfile(path) and not file:find('%.json$') and isfile(path .. '.json') then
-			path = path .. '.json' -- accept stripped names like 'ue' for 'ue.json'
+			path = path .. '.json'
 		end
 		if not isfile(path) then
 			return nil
@@ -170,7 +248,7 @@ local ThemeManager = {} do
 
 		local data = readfile(path)
 		local success, decoded = pcall(httpService.JSONDecode, httpService, data)
-		
+
 		if not success then
 			return nil
 		end
@@ -179,15 +257,17 @@ local ThemeManager = {} do
 	end
 
 	function ThemeManager:SaveCustomTheme(file)
-		if file:gsub(' ', '') == '' then
+		if not file or file:gsub(' ', '') == '' then
 			return self.Library:Notify('Invalid file name for theme (empty)', 3)
 		end
 
 		local theme = {}
-		local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
-
-		for _, field in next, fields do
-			theme[field] = Options[field].Value:ToHex()
+		for _, field in next, self.ThemeFields do
+			if Options and Options[field] and Options[field].Value ~= nil then
+				theme[field] = encode(Options[field].Value)
+			elseif self.Library[field] ~= nil then
+				theme[field] = encode(self.Library[field])
+			end
 		end
 
 		writefile(self.Folder .. '/themes/' .. file .. '.json', httpService:JSONEncode(theme))
@@ -200,8 +280,6 @@ local ThemeManager = {} do
 		for i = 1, #list do
 			local file = list[i]
 			if file:sub(-5) == '.json' then
-				-- i hate this but it has to be done ...
-
 				local pos = file:find('.json', 1, true)
 				local char = file:sub(pos, pos)
 
@@ -213,7 +291,7 @@ local ThemeManager = {} do
 				if char == '/' or char == '\\' then
 					local name = file:sub(pos + 1)
 					if name:sub(-5) == '.json' then
-						name = name:sub(1, -6) -- strip the .json extension for display
+						name = name:sub(1, -6)
 					end
 					table.insert(out, name)
 				end
@@ -229,9 +307,6 @@ local ThemeManager = {} do
 
 	function ThemeManager:BuildFolderTree()
 		local paths = {}
-
-		-- build the entire tree if a path is like some-hub/phantom-forces
-		-- makefolder builds the entire tree on Synapse X but not other exploits
 
 		local parts = self.Folder:split('/')
 		for idx = 1, #parts do
