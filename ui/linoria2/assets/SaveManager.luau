@@ -1,7 +1,7 @@
 local httpService = game:GetService('HttpService')
 
 local SaveManager = {} do
-	SaveManager.Folder = 'Xyro/rivals/'
+	SaveManager.Folder = 'Xyro/rivals/' -- yea fuck you guys, change this if u want a custom one 🤔☠️
 	SaveManager.Ignore = {}
 	SaveManager.Parser = {
 		Toggle = {
