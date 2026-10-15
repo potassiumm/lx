@@ -1,6 +1,6 @@
 local httpService = game:GetService('HttpService')
 local ThemeManager = {} do
-	ThemeManager.Folder = 'UELibSettings'
+	ThemeManager.Folder = 'Xyro/rivals/'
 
 	ThemeManager.Library = nil
 
@@ -331,7 +331,7 @@ local ThemeManager = {} do
 
 	function ThemeManager:CreateGroupBox(tab)
 		assert(self.Library, 'Must set ThemeManager.Library first!')
-		return tab:AddLeftGroupbox('Themes')
+		return tab:AddLeftGroupbox('themes')
 	end
 
 	function ThemeManager:ApplyToTab(tab)
