@@ -46,7 +46,7 @@ local ThemeManager = {} do
 	end
 
 	local THEMES_JSON = [[
-{"FontColor":"ffffff","MainColor":"131313","AccentColor":"a2cdff","BackgroundColor":"151515","OutlineColor":"212121","RiskColor":"ff7425",
+{"FontColor":"ffffff","MainColor":"131313","AccentColor":"a2cdff","BackgroundColor":"151515","OutlineColor":"212121","RiskColor":"ff3232",
  "SwordColor":"ffffff","SwordTransparency":"0","SwordReflectance":"0","SwordSpeed":"0.15","SwordMaterial":"Neon",
  "Contrast":"0","Saturation":"0","Brightness":"0",
  "BackColor":"000000","BlurSize":"15","BackTransparency":"0.7"}
