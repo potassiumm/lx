@@ -28,7 +28,7 @@ local Library = {
     OutlineColor = Color3.fromRGB(31, 31, 31);
     RiskColor = Color3.fromRGB(255, 50, 50),
     Black = Color3.new(0, 0, 0);
-    Font = Enum.Font.Code,
+    Font = Enum.Font.RobotoMono,
     FontSize = 14,
     OpenedFrames = {};
     DependencyBoxes = {};
@@ -1056,7 +1056,16 @@ do
         if KeyPicker.SyncToggleState and not Info.Modes then
             Info.Modes = { 'Always', 'Toggle', 'Hold' }
         end
-        if Info.Mode then
+        if Info.Modes then
+            local Matched = false
+            for _, M in next, Info.Modes do
+                if M == Info.Mode then
+                    Matched = true
+                    break
+                end
+            end
+            KeyPicker.Mode = Matched and Info.Mode or Info.Modes[1]
+        elseif Info.Mode then
             KeyPicker.Mode = Info.Mode
         end
         local PickOuter = Library:Create('Frame', {
@@ -1274,7 +1283,11 @@ do
             local Key, Mode = Data[1], Data[2];
             DisplayLabel.Text = (Key == 'None' or Key == '' or Key == '--') and '…' or Key;
             KeyPicker.Value = Key;
-            ModeButtons[Mode]:Select();
+            if ModeButtons[Mode] then
+                ModeButtons[Mode]:Select();
+            elseif ModeButtons[KeyPicker.Mode] then
+                ModeButtons[KeyPicker.Mode]:Select();
+            end;
             KeyPicker:Update();
         end;
         function KeyPicker:OnClick(Callback)
@@ -1308,6 +1321,7 @@ do
                 return;
             end;
             Picking = true;
+            Library.PickingKeybind = true;
             DisplayLabel.Text = '';
             local Break;
             local Text = '';
@@ -1342,6 +1356,11 @@ do
                 Picking = false;
                 DisplayLabel.Text = Key;
                 KeyPicker.Value = Key;
+                Library.LastBoundKey = Key;
+                Library.LastBoundTime = os.clock();
+                task.defer(function()
+                    Library.PickingKeybind = false;
+                end);
                 Library:SafeCallback(KeyPicker.ChangedCallback, Input.KeyCode or Input.UserInputType)
                 Library:SafeCallback(KeyPicker.Changed, Input.KeyCode or Input.UserInputType)
                 Library:AttemptSave();
@@ -3310,14 +3329,15 @@ function Library:CreateWindow(...)
     });
     local TabArea = Library:Create('Frame', {
         BackgroundTransparency = 1;
-        Position = UDim2.new(0, 4, 0, 4);
-        Size = UDim2.new(1, -8, 1, -8);
+        Position = UDim2.new(0, 4, 0, 0);
+        Size = UDim2.new(1, -8, 1, 0);
         ZIndex = 1;
         Parent = TabBarInner;
     });
     local TabListLayout = Library:Create('UIListLayout', {
         Padding = UDim.new(0, Config.TabPadding);
         FillDirection = Enum.FillDirection.Horizontal;
+        VerticalAlignment = Enum.VerticalAlignment.Center;
         SortOrder = Enum.SortOrder.LayoutOrder;
         Parent = TabArea;
     });
@@ -3445,13 +3465,32 @@ function Library:CreateWindow(...)
         local TabButton = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
             BorderColor3 = Library.OutlineColor;
-            Size = UDim2.new(0, TabButtonWidth + 8 + 4, 1, 0);
+            BorderSizePixel = 2;
+            Size = UDim2.new(0, TabButtonWidth + 8 + 4, 0.75, 0);
             ZIndex = 1;
             Parent = TabArea;
         });
         Library:AddToRegistry(TabButton, {
             BackgroundColor3 = 'BackgroundColor';
             BorderColor3 = 'OutlineColor';
+        });
+        local TabIndicator = Library:Create('Frame', {
+            BackgroundColor3 = Library.AccentColor;
+            BorderSizePixel = 0;
+            Position = UDim2.new(0, 0, 0, 0);
+            Size = UDim2.new(1, 0, 0, 1);
+            Visible = false;
+            ZIndex = 104;
+            Parent = TabButton;
+        });
+        Library:AddToRegistry(TabIndicator, { BackgroundColor3 = 'AccentColor' });
+        local TabHover = Library:Create('Frame', {
+            BackgroundColor3 = Color3.new(1, 1, 1);
+            BackgroundTransparency = 1;
+            BorderSizePixel = 0;
+            Size = UDim2.new(1, 0, 1, 0);
+            ZIndex = 2;
+            Parent = TabButton;
         });
         local TabButtonLabel = Library:CreateLabel({
             Position = UDim2.new(0, 0, 0, 0);
@@ -3460,16 +3499,13 @@ function Library:CreateWindow(...)
             ZIndex = 1;
             Parent = TabButton;
         });
-        local TabIndicator = Library:Create('Frame', {
-            BackgroundColor3 = Library.AccentColor;
-            BorderSizePixel = 0;
-            Position = UDim2.new(0, 0, 0, 0);
-            Size = UDim2.new(1, 0, 0, 2);
-            Visible = false;
-            ZIndex = 4;
-            Parent = TabButton;
-        });
-        Library:AddToRegistry(TabIndicator, { BackgroundColor3 = 'AccentColor' });
+        local TabHoverInfo = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
+        TabButton.MouseEnter:Connect(function()
+            TweenService:Create(TabHover, TabHoverInfo, { BackgroundTransparency = 0.9 }):Play();
+        end);
+        TabButton.MouseLeave:Connect(function()
+            TweenService:Create(TabHover, TabHoverInfo, { BackgroundTransparency = 1 }):Play();
+        end);
         local Blocker = Library:Create('Frame', {
             BackgroundTransparency = 1;
             Size = UDim2.new(0, 0, 0, 0);
@@ -3534,15 +3570,11 @@ function Library:CreateWindow(...)
             end;
             Library:CloseAllOpenMenus();
             Blocker.BackgroundTransparency = 0;
-            TabButton.BackgroundColor3 = Library.MainColor;
-            Library.RegistryMap[TabButton].Properties.BackgroundColor3 = 'MainColor';
             TabFrame.Visible = true;
             TabIndicator.Visible = true;
         end;
         function Tab:HideTab()
             Blocker.BackgroundTransparency = 1;
-            TabButton.BackgroundColor3 = Library.BackgroundColor;
-            Library.RegistryMap[TabButton].Properties.BackgroundColor3 = 'BackgroundColor';
             TabFrame.Visible = false;
             TabIndicator.Visible = false;
         end;
@@ -3894,9 +3926,14 @@ function Library:CreateWindow(...)
     if not Library.ToggleSignalConnected then
         Library.ToggleSignalConnected = true
         Library:GiveSignal(InputService.InputBegan:Connect(function(Input, Processed)
+            if Library.PickingKeybind then return end
             local isToggleKey = false
             if type(Library.ToggleKeybind) == 'table' and Library.ToggleKeybind.Type == 'KeyPicker' then
+                if Library.ToggleKeybind.Mode and Library.ToggleKeybind.Mode ~= 'Toggle' then return end
                 if Input.UserInputType == Enum.UserInputType.Keyboard and Input.KeyCode.Name == Library.ToggleKeybind.Value then
+                    if Library.LastBoundKey == Library.ToggleKeybind.Value and (os.clock() - (Library.LastBoundTime or 0)) < 0.5 then
+                        return
+                    end
                     isToggleKey = true
                 end
             elseif type(Library.ToggleKeybind) == 'string' then
