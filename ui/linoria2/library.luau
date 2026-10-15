@@ -40,15 +40,25 @@ local Library = {
     BlurSize = 15;
     KeybindMode = 'All';
     NotifyConfig = {
-        Alignment = 'Left';
-        BarSide   = 'Left';
+        Alignment = 'Center';
+        BarSide = 'Bottom';
         PositionX = 0;
         PositionY = 40;
+        ScaleX = 0;
+        ScaleY = 0;
         AnchorPoint = nil;
+        Transparency = 0;
+        ClipDescendants = true;
+        ClipPastDistance = 200;
+        ForceColor = false;
+        ForceColorValue = Color3.fromRGB(71, 119, 182);
+        FontColorValue = Color3.fromRGB(255, 255, 255);
+        SortOrder = 'Default';
     };
     TooltipResetters = {};
 };
 _G.UIUnlocked = false;
+Library.NotificationStyle = Library.NotifyConfig;
 Library.KeyPickerList = {};
 Library.CursorLoopRunning = false;
 function Library:CursorPos()
@@ -1205,7 +1215,6 @@ do
             local State = KeyPicker:GetState();
             local RawKey = tostring(KeyPicker.Value or '');
             if RawKey == '' or RawKey == 'None' or RawKey == '--' or RawKey:lower() == 'unknown' then
-                -- unbound / unknown keybinds never show in the keybind list
                 if KeybindEntry then KeybindEntry.Visible = false end
                 return;
             end;
@@ -1607,21 +1616,6 @@ do
             return Outer, Inner, Label
         end
         local function InitEvents(Button)
-            local function WaitForEvent(event, timeout, validator)
-                local bindable = Instance.new('BindableEvent')
-                local connection = event:Once(function(...)
-                    if type(validator) == 'function' and validator(...) then
-                        bindable:Fire(true)
-                    else
-                        bindable:Fire(false)
-                    end
-                end)
-                task.delay(timeout, function()
-                    connection:Disconnect()
-                    bindable:Fire(false)
-                end)
-                return bindable.Event:Wait()
-            end
             local function ValidateClick(Input)
                 if Library:MouseIsOverOpenedFrame() then
                     return false
@@ -1631,21 +1625,53 @@ do
                 end
                 return true
             end
+            local function WaitForConfirm(Timeout)
+                local bindable = Instance.new('BindableEvent')
+                local done = false
+                local connection
+                local function Resolve(value)
+                    if done then return end
+                    done = true
+                    if connection then
+                        connection:Disconnect()
+                        connection = nil
+                    end
+                    bindable:Fire(value)
+                end
+                connection = Button.Outer.InputBegan:Connect(function(Input)
+                    if ValidateClick(Input) then
+                        Resolve(true)
+                    end
+                end)
+                task.delay(Timeout, function()
+                    Resolve(false)
+                end)
+                local clicked = bindable.Event:Wait()
+                bindable:Destroy()
+                return clicked
+            end
+            local function ArmPrompt()
+                Library:RemoveFromRegistry(Button.Label)
+                Library:AddToRegistry(Button.Label, { TextColor3 = 'RiskColor' })
+                Button.Label.TextColor3 = Library.RiskColor
+                Button.Label.Text = 'Are you sure?'
+            end
+            local function RestorePrompt()
+                Library:RemoveFromRegistry(Button.Label)
+                Library:AddToRegistry(Button.Label, { TextColor3 = 'FontColor' })
+                Button.Label.TextColor3 = Library.FontColor
+                Button.Label.Text = Button.Text
+            end
+
             Button.Outer.InputBegan:Connect(function(Input)
                 if not ValidateClick(Input) then return end
                 if Button.Locked then return end
                 if Button.DoubleClick then
-                    Library:RemoveFromRegistry(Button.Label)
-                    Library:AddToRegistry(Button.Label, { TextColor3 = 'AccentColor' })
-                    Button.Label.TextColor3 = Library.AccentColor
-                    Button.Label.Text = 'Are you sure?'
                     Button.Locked = true
-                    local clicked = WaitForEvent(Button.Outer.InputBegan, 4, ValidateClick)
-                    Library:RemoveFromRegistry(Button.Label)
-                    Library:AddToRegistry(Button.Label, { TextColor3 = 'FontColor' })
-                    Button.Label.TextColor3 = Library.FontColor
-                    Button.Label.Text = Button.Text
-                    task.defer(rawset, Button, 'Locked', false)
+                    ArmPrompt()
+                    local clicked = WaitForConfirm(4)
+                    RestorePrompt()
+                    Button.Locked = false
                     if clicked then
                         Library:SafeCallback(Button.Func)
                     end
@@ -2051,7 +2077,13 @@ do
             local Suffix = Info.Suffix or '';
             DisplayLabel.Text = Info.Text .. ': ' .. Slider.Value .. Suffix;
             local X = math.ceil(Library:MapValue(Slider.Value, Slider.Min, Slider.Max, 0, Slider.MaxSize));
-            Fill.Size = UDim2.new(0, X, 1, 0);
+            if Slider._Tween then
+                Slider._Tween:Cancel();
+            end
+            Slider._Tween = TweenService:Create(Fill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, X, 1, 0);
+            });
+            Slider._Tween:Play();
             HideBorderRight.Visible = not (X == Slider.MaxSize or X == 0);
         end;
         function Slider:OnChanged(Func)
@@ -2786,6 +2818,10 @@ do
         if cfg.BarSide == 'Top' or cfg.BarSide == 'Bottom' then
             area.Size = UDim2.new(1, -8, 1, -cfg.PositionY)
         end
+        area.ClipsDescendants = cfg.ClipDescendants ~= false
+        if area.ClipsDescendants and (tonumber(cfg.ClipPastDistance) or 0) > 0 then
+            area.Size = UDim2.new(area.Size.X.Scale, area.Size.X.Offset, 0, math.floor(cfg.ClipPastDistance))
+        end
     end
     function Library:SetNotificationPosition(config)
         if type(config) ~= 'table' then return end
@@ -2796,41 +2832,76 @@ do
     end
     Library.UpdateNotifAlignment = Library_UpdateNotifAlignment
     Library_UpdateNotifAlignment()
+    local NotifyBarSize = {
+        Left = UDim2.new(0, 3, 1, 2);
+        Right = UDim2.new(0, 3, 1, 2);
+        Top = UDim2.new(1, 2, 0, 3);
+        Bottom = UDim2.new(1, 2, 0, 3);
+    };
+    local NotifyBarPosition = {
+        Left = UDim2.new(0, -1, 0, -1);
+        Right = UDim2.new(1, -2, 0, -1);
+        Top = UDim2.new(0, -1, 0, -1);
+        Bottom = UDim2.new(0, -1, 1, -2);
+    };
+
     function Library:Notify(Text, Time)
+        local cfg = Library.NotifyConfig
+        local style = Library.NotificationStyle or cfg
+        local transparency = math.clamp(tonumber(style.Transparency) or 0, 0, 1)
+        local barSide = style.BarSide or 'Left'
+
         local XSize, YSize = Library:GetTextBounds(Text, Library.Font, 14);
         YSize = YSize + 7
+
+        local outerColor = Library.BackgroundColor;
+        local borderColor = Library.OutlineColor;
+        local barColor = style.ForceColor and (style.ForceColorValue or Library.AccentColor) or Library.AccentColor;
+        local textColor = style.ForceColor and (style.FontColorValue or Library.FontColor) or Library.FontColor;
+
+        if cfg.SortOrder == 'Newest First' then
+            Library._NotifyOrder = (Library._NotifyOrder or 0) - 1;
+        else
+            Library._NotifyOrder = (Library._NotifyOrder or 0) + 1;
+        end
+
         local NotifyOuter = Library:Create('Frame', {
+            BackgroundColor3 = outerColor;
             BorderColor3 = Color3.new(0, 0, 0);
-            Position = UDim2.new(0, 100, 0, 10);
+            BorderSizePixel = 0;
+            LayoutOrder = Library._NotifyOrder;
             Size = UDim2.new(0, 0, 0, YSize);
-            ClipsDescendants = true;
+            ClipsDescendants = style.ClipDescendants ~= false;
+            Transparency = transparency;
             ZIndex = 100;
             Parent = Library.NotificationArea;
         });
+        Library:AddToRegistry(NotifyOuter, { BackgroundColor3 = 'BackgroundColor' }, true);
         local NotifyInner = Library:Create('Frame', {
-            BackgroundColor3 = Library.MainColor;
-            BorderColor3 = Library.OutlineColor;
+            BackgroundColor3 = outerColor;
+            BorderColor3 = borderColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
+            Transparency = transparency;
             ZIndex = 101;
             Parent = NotifyOuter;
         });
         Library:AddToRegistry(NotifyInner, {
-            BackgroundColor3 = 'MainColor';
+            BackgroundColor3 = 'BackgroundColor';
             BorderColor3 = 'OutlineColor';
         }, true);
         local InnerFrame = Library:Create('Frame', {
             BackgroundColor3 = Color3.new(1, 1, 1);
             BorderSizePixel = 0;
-            Position = UDim2.new(0, 1, 0, 1);
-            Size = UDim2.new(1, -2, 1, -2);
+            Size = UDim2.new(1, 0, 1, 0);
+            Transparency = transparency;
             ZIndex = 102;
             Parent = NotifyInner;
         });
         local Gradient = Library:Create('UIGradient', {
             Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
-                ColorSequenceKeypoint.new(1, Library.MainColor),
+                ColorSequenceKeypoint.new(0, Library:GetDarkerColor(outerColor)),
+                ColorSequenceKeypoint.new(1, outerColor),
             });
             Rotation = -90;
             Parent = InnerFrame;
@@ -2838,8 +2909,8 @@ do
         Library:AddToRegistry(Gradient, {
             Color = function()
                 return ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.MainColor)),
-                    ColorSequenceKeypoint.new(1, Library.MainColor),
+                    ColorSequenceKeypoint.new(0, Library:GetDarkerColor(Library.BackgroundColor)),
+                    ColorSequenceKeypoint.new(1, Library.BackgroundColor),
                 });
             end
         });
@@ -2847,22 +2918,23 @@ do
             Position = UDim2.new(0, 4, 0, 0);
             Size = UDim2.new(1, -4, 1, 0);
             Text = Text;
+            TextColor3 = textColor;
             TextXAlignment = Enum.TextXAlignment.Left;
             TextSize = 14;
             ZIndex = 103;
             Parent = InnerFrame;
         });
-        local LeftColor = Library:Create('Frame', {
-            BackgroundColor3 = Library.AccentColor;
+        Library:AddToRegistry(NotifyLabel, { TextColor3 = 'FontColor' }, true);
+        local Bar = Library:Create('Frame', {
+            BackgroundColor3 = barColor;
             BorderSizePixel = 0;
-            Position = UDim2.new(0, -1, 0, -1);
-            Size = UDim2.new(0, 3, 1, 2);
+            Position = NotifyBarPosition[barSide] or NotifyBarPosition.Left;
+            Size = NotifyBarSize[barSide] or NotifyBarSize.Left;
             ZIndex = 104;
             Parent = NotifyOuter;
         });
-        Library:AddToRegistry(LeftColor, {
-            BackgroundColor3 = 'AccentColor';
-        }, true);
+        Library:AddToRegistry(Bar, { BackgroundColor3 = 'AccentColor' }, true);
+
         pcall(NotifyOuter.TweenSize, NotifyOuter, UDim2.new(0, XSize + 8 + 4, 0, YSize), 'Out', 'Quad', 0.4, true);
         task.spawn(function()
             task.wait(Time or 5);
@@ -2987,7 +3059,7 @@ end
 do
     local WatermarkOuter = Library:Create('Frame', {
         BorderColor3 = Color3.new(0, 0, 0);
-        Position = UDim2.new(0, 125, 0, -10);
+        Position = UDim2.new(0, 100, 0, -25);
         Size = UDim2.new(0, 213, 0, 20);
         ZIndex = 200;
         Visible = false;
