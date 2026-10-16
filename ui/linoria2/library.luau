@@ -3412,12 +3412,12 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 local BackgroundItems = {
-    { Name = 'sword', Id = 'rbxassetid://48094745' };
-    { Name = 'cross', Id = 'rbxassetid://4411430922' };
-    { Name = 'heart', Id = 'rbxassetid://1717708486' };
-    { Name = 'catholic cross', Id = 'rbxassetid://11468548833' };
-    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true };
-    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true };
+    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1 };
+    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 1 };
+    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 1 };
+    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.3 };
+    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.35 };
+    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 0.5 };
 }
 
 local BackgroundState = nil
@@ -3493,7 +3493,7 @@ local function EnsureBackground()
     Item.CanTouch = false;
     Item.CastShadow = false;
     Item.Massless = true;
-    Item.Size = Vector3.new(4, 4, 4);
+    Item.Size = Vector3.new(4, 4, 0.08);
     Item.Color = Color3.fromRGB(255, 255, 255);
     Item.Transparency = 1;
     Item.Material = Enum.Material.Plastic;
@@ -3502,6 +3502,7 @@ local function EnsureBackground()
 
     local Mesh = Instance.new('SpecialMesh');
     Mesh.MeshType = Enum.MeshType.FileMesh;
+    Mesh.Scale = Vector3.new(1, 1, 0.02);
     Mesh.Parent = Item;
 
     BackgroundState = {
@@ -3524,6 +3525,8 @@ local function EnsureBackground()
         TintColor = Color3.fromRGB(255, 255, 255);
         TintAmount = 0;
         BlurSize = 0;
+        TargetSize = 4;
+        Flatten = 0.02;
         Connection = nil;
     };
 
@@ -3559,10 +3562,13 @@ local function EnsureBackground()
         local T = math.clamp(tonumber(State.Transparency) or 100, 0, 100) / 100;
         Target.Transparency = T;
         Target.Color = State.Color;
-        Target.Reflectance = State.Reflectance;
+        pcall(function() Target.Reflectance = State.Reflectance end);
         Target.Material = State.Material;
         local Show = IsShown() and T < 1;
         Target.Parent = State.World;
+        if State.Union then
+            State.Item.Parent = nil;
+        end
         if Show then
             PlaceTarget();
         end
@@ -3574,6 +3580,48 @@ local function EnsureBackground()
         ApplyTint();
         ApplyBlur();
         ApplyItem();
+    end
+
+    local function LoadUnionPart(Def)
+        local Digits = Def.Id:match('%d+');
+        if not Digits then return nil end
+        local Container = nil;
+        if type(game.GetObjects) == 'function' then
+            local Ok, Objects = pcall(function() return game:GetObjects('rbxassetid://' .. Digits) end);
+            if Ok and type(Objects) == 'table' then
+                Container = Objects[1];
+            end
+        end
+        if not Container then
+            local Ok, Result = pcall(function() return State.InsertService:LoadAsset(tonumber(Digits)) end);
+            if Ok and Result then
+                Container = Result;
+            end
+        end
+        if not Container then return nil end
+        local Found = nil;
+        pcall(function() Found = Container:FindFirstChildWhichIsA('BasePart', true) end);
+        local Cloned = nil;
+        if Found then
+            Cloned = Found:Clone();
+        end
+        pcall(function() Container:Destroy() end);
+        if not Cloned then return nil end
+        Cloned.Anchored = true;
+        Cloned.CanCollide = false;
+        Cloned.CanQuery = false;
+        Cloned.CanTouch = false;
+        Cloned.CastShadow = false;
+        Cloned.Massless = true;
+        return Cloned;
+    end
+
+    local function FitTarget(Target, Scale)
+        local Size = Target.Size;
+        local Max = math.max(Size.X, Size.Y, Size.Z);
+        if Max <= 0 then return end
+        local Factor = (State.TargetSize * Scale) / Max;
+        Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, Size.Z * Factor * State.Flatten);
     end
 
     local function SetItem(Name)
@@ -3589,25 +3637,22 @@ local function EnsureBackground()
             pcall(function() State.Union:Destroy() end);
             State.Union = nil;
         end
+        State.Item.Parent = State.World;
+        local Scale = tonumber(Def.Scale) or 1;
+        local Loaded = nil;
         if Def.Union then
-            local AssetId = tonumber(Def.Id:match('%d+'));
-            local Ok, Result = pcall(function() return State.InsertService:LoadAsset(AssetId) end);
-            if Ok and Result then
-                local Found = Result:FindFirstChildWhichIsA('BasePart', true);
-                if Found then
-                    local Cloned = Found:Clone();
-                    Cloned.Anchored = true;
-                    Cloned.CanCollide = false;
-                    Cloned.CanQuery = false;
-                    Cloned.CanTouch = false;
-                    Cloned.CastShadow = false;
-                    Cloned.Massless = true;
-                    State.Union = Cloned;
-                end
-                pcall(function() Result:Destroy() end);
+            Loaded = LoadUnionPart(Def);
+            if not Loaded then
+                pcall(function() Library:Notify('failed to load background item: ' .. tostring(Name), 4) end);
             end
+        end
+        if Loaded then
+            State.Union = Loaded;
+            FitTarget(Loaded, Scale);
+            State.Item.Parent = nil;
         else
-            State.Mesh.MeshId = Def.Id;
+            State.Mesh.MeshId = Def.Union and '' or Def.Id;
+            State.Mesh.Scale = Vector3.new(Scale, Scale, Scale * State.Flatten);
         end
         ApplyItem();
     end
@@ -3851,7 +3896,7 @@ function Library:CreateSettingsPanes(Tab, Config)
         Text = 'item transparency';
         Min = 0;
         Max = 100;
-        Default = 100;
+        Default = 0;
         Rounding = 0;
         Suffix = '%';
         Callback = function(Value)
@@ -3956,6 +4001,12 @@ function Library:CreateSettingsPanes(Tab, Config)
             State.Correction.Brightness = Value / 100;
         end;
     });
+
+    State.Transparency = 0;
+    State.Reflectance = 0;
+    State.Speed = 10;
+    State.SetItem('sword');
+    State.Refresh();
 
     return {
         Menu = MenuPane;
