@@ -3415,7 +3415,7 @@ local BackgroundItems = {
     { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1 };
     { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 1 };
     { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 1 };
-    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.3 };
+    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.04 };
     { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.35 };
     { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 0.5 };
 }
@@ -3490,7 +3490,7 @@ local function EnsureBackground()
     Item.CanTouch = false;
     Item.CastShadow = false;
     Item.Massless = true;
-    Item.Size = Vector3.new(4, 4, 0.08);
+    Item.Size = Vector3.new(4, 4, 0.1);
     Item.Color = Color3.fromRGB(255, 255, 255);
     Item.Transparency = 1;
     Item.Material = Enum.Material.Plastic;
@@ -3499,7 +3499,7 @@ local function EnsureBackground()
 
     local Mesh = Instance.new('SpecialMesh');
     Mesh.MeshType = Enum.MeshType.FileMesh;
-    Mesh.Scale = Vector3.new(1, 1, 0.02);
+    Mesh.Scale = Vector3.new(1, 1, 0.04);
     Mesh.Parent = Item;
 
     BackgroundState = {
@@ -3523,7 +3523,7 @@ local function EnsureBackground()
         TintAmount = 0;
         BlurSize = 0;
         TargetSize = 4;
-        Flatten = 0.02;
+        Thickness = 0.12;
         Connection = nil;
     };
 
@@ -3586,7 +3586,12 @@ local function EnsureBackground()
         if type(game.GetObjects) == 'function' then
             local Ok, Objects = pcall(function() return game:GetObjects('rbxassetid://' .. Digits) end);
             if Ok and type(Objects) == 'table' then
-                Container = Objects[1];
+                for _, Obj in ipairs(Objects) do
+                    if typeof(Obj) == 'Instance' then
+                        Container = Obj;
+                        break;
+                    end
+                end
             end
         end
         if not Container then
@@ -3598,6 +3603,9 @@ local function EnsureBackground()
         if not Container then return nil end
         local Found = nil;
         pcall(function() Found = Container:FindFirstChildWhichIsA('BasePart', true) end);
+        if not Found and Container:IsA('BasePart') then
+            Found = Container;
+        end
         local Cloned = nil;
         if Found then
             Cloned = Found:Clone();
@@ -3615,10 +3623,10 @@ local function EnsureBackground()
 
     local function FitTarget(Target, Scale)
         local Size = Target.Size;
-        local Max = math.max(Size.X, Size.Y, Size.Z);
+        local Max = math.max(Size.X, Size.Y);
         if Max <= 0 then return end
         local Factor = (State.TargetSize * Scale) / Max;
-        Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, Size.Z * Factor * State.Flatten);
+        Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, State.Thickness);
     end
 
     local function SetItem(Name)
@@ -3649,8 +3657,8 @@ local function EnsureBackground()
             State.Item.Parent = nil;
         else
             State.Mesh.MeshId = Def.Union and '' or Def.Id;
-            State.Mesh.Scale = Vector3.new(Scale, Scale, Scale * State.Flatten);
-        end
+            local Flat = State.Thickness / State.TargetSize;
+            State.Mesh.Scale = Vector3.new(Scale, Scale, Scale * Flat);        end
         ApplyItem();
     end
 
