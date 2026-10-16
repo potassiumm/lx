@@ -3405,6 +3405,488 @@ function Library:SetWatermark(Text)
     Library:SetWatermarkVisibility(true)
     Library.WatermarkText.Text = Text;
 end;
+local BackgroundItems = {
+    { Name = 'sword', Id = 'rbxassetid://48094745' };
+    { Name = 'cross', Id = 'rbxassetid://4411430922' };
+    { Name = 'heart', Id = 'rbxassetid://1717708486' };
+    { Name = 'catholic cross', Id = 'rbxassetid://11468548833' };
+    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true };
+    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true };
+}
+
+local BackgroundState = nil
+
+local function EnsureBackground()
+    if BackgroundState then return BackgroundState end
+    local Lighting = game:GetService('Lighting');
+    local RunService = game:GetService('RunService');
+    local InsertService = game:GetService('InsertService');
+
+    local Correction = Lighting:FindFirstChild('backgroundcolor');
+    if not Correction then
+        Correction = Instance.new('ColorCorrectionEffect');
+        Correction.Name = 'backgroundcolor';
+        Correction.Parent = Lighting;
+    end
+
+    local Blur = Lighting:FindFirstChild('backgroundblur');
+    if not Blur then
+        Blur = Instance.new('BlurEffect');
+        Blur.Name = 'backgroundblur';
+        Blur.Size = 0;
+        Blur.Enabled = false;
+        Blur.Parent = Lighting;
+    end
+
+    local Item = Instance.new('Part');
+    Item.Name = 'backgrounditem';
+    Item.Anchored = true;
+    Item.CanCollide = false;
+    Item.CanQuery = false;
+    Item.CanTouch = false;
+    Item.CastShadow = false;
+    Item.Massless = true;
+    Item.Size = Vector3.new(4, 4, 4);
+    Item.Color = Color3.fromRGB(255, 255, 255);
+    Item.Transparency = 1;
+    Item.Material = Enum.Material.Plastic;
+    Item.Reflectance = 0;
+
+    local Mesh = Instance.new('SpecialMesh');
+    Mesh.MeshType = Enum.MeshType.FileMesh;
+    Mesh.Parent = Item;
+
+    BackgroundState = {
+        Item = Item;
+        Mesh = Mesh;
+        Correction = Correction;
+        Blur = Blur;
+        InsertService = InsertService;
+        Union = nil;
+        Spin = 0;
+        Speed = 10;
+        Transparency = 100;
+        Color = Item.Color;
+        Reflectance = 0;
+        Material = Enum.Material.Plastic;
+        TintColor = Color3.fromRGB(255, 255, 255);
+        TintAmount = 0;
+        Connection = nil;
+    };
+
+    local State = BackgroundState;
+
+    local function ApplyTint()
+        local A = math.clamp(tonumber(State.TintAmount) or 0, 0, 100) / 100;
+        local Keep = 1 - A;
+        State.Correction.TintColor = Color3.new(
+            Keep + State.TintColor.R * A,
+            Keep + State.TintColor.G * A,
+            Keep + State.TintColor.B * A
+        );
+    end
+
+    local function ApplyItem()
+        local Target = State.Union or State.Item;
+        local T = math.clamp(tonumber(State.Transparency) or 100, 0, 100) / 100;
+        Target.Transparency = T;
+        Target.Color = State.Color;
+        Target.Reflectance = State.Reflectance;
+        Target.Material = State.Material;
+        State.Item.Parent = (T < 1 and not State.Union) and workspace or nil;
+        if State.Union then
+            State.Union.Parent = T < 1 and workspace or nil;
+        end
+    end
+
+    local function SetItem(Name)
+        local Def = nil;
+        for _, Entry in ipairs(BackgroundItems) do
+            if Entry.Name == Name then
+                Def = Entry;
+                break;
+            end
+        end
+        if not Def then return end
+        if State.Union then
+            pcall(function() State.Union:Destroy() end);
+            State.Union = nil;
+        end
+        if Def.Union then
+            local AssetId = tonumber(Def.Id:match('%d+'));
+            local Ok, Result = pcall(function() return State.InsertService:LoadAsset(AssetId) end);
+            if Ok and Result then
+                local Found = Result:FindFirstChildWhichIsA('BasePart', true);
+                if Found then
+                    local Cloned = Found:Clone();
+                    Cloned.Anchored = true;
+                    Cloned.CanCollide = false;
+                    Cloned.CanQuery = false;
+                    Cloned.CanTouch = false;
+                    Cloned.CastShadow = false;
+                    Cloned.Massless = true;
+                    State.Union = Cloned;
+                end
+                pcall(function() Result:Destroy() end);
+            end
+        else
+            State.Mesh.MeshId = Def.Id;
+        end
+        ApplyItem();
+    end
+
+    State.ApplyTint = ApplyTint;
+    State.ApplyItem = ApplyItem;
+    State.SetItem = SetItem;
+
+    State.Connection = RunService.RenderStepped:Connect(function(Dt)
+        local Target = State.Union or State.Item;
+        if not Target.Parent then return end
+        local Camera = workspace.CurrentCamera;
+        if not Camera then return end
+        State.Spin = State.Spin + math.rad(State.Speed) * Dt;
+        Target.CFrame = Camera.CFrame * CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
+    end);
+
+    Library:OnUnload(function()
+        pcall(function() if State.Connection then State.Connection:Disconnect() end end);
+        pcall(function() State.Item:Destroy() end);
+        pcall(function() if State.Union then State.Union:Destroy() end end);
+        pcall(function() State.Correction:Destroy() end);
+        pcall(function() State.Blur:Destroy() end);
+    end);
+
+    ApplyTint();
+    ApplyItem();
+
+    return BackgroundState;
+end
+
+function Library:CreateSettingsPanes(Tab, Config)
+    Config = Config or {};
+    local IdPrefix = Config.IdPrefix or 'library_';
+    local function Id(Name)
+        return IdPrefix .. Name;
+    end
+
+    local State = EnsureBackground();
+
+    local MenuBox = Tab:AddLeftTabbox(Id('menu_panes'));
+    local MenuPane = MenuBox:AddTab('menu');
+    local NotifPane = MenuBox:AddTab('notifications');
+    local LookBox = Tab:AddLeftTabbox(Id('appearance_panes'));
+    local ThemesPane = LookBox:AddTab('themes');
+    local BackgroundPane = LookBox:AddTab('background');
+
+    local AlignmentMap = { left = 'Left', center = 'Center', right = 'Right' };
+    local BarSideMap = { top = 'Top', bottom = 'Bottom', left = 'Left', right = 'Right' };
+    local SortMap = { ['default'] = 'Default', ['newest first'] = 'Newest First' };
+    local MaterialNames = {
+        { Label = 'plastic', Value = 'Plastic' };
+        { Label = 'smooth plastic', Value = 'SmoothPlastic' };
+        { Label = 'neon', Value = 'Neon' };
+        { Label = 'metal', Value = 'Metal' };
+        { Label = 'glass', Value = 'Glass' };
+        { Label = 'force field', Value = 'ForceField' };
+        { Label = 'wood', Value = 'Wood' };
+        { Label = 'marble', Value = 'Marble' };
+        { Label = 'slate', Value = 'Slate' };
+    };
+    local MaterialLabels = {};
+    local MaterialLookup = {};
+    for _, Entry in ipairs(MaterialNames) do
+        table.insert(MaterialLabels, Entry.Label);
+        MaterialLookup[Entry.Label] = Entry.Value;
+    end
+
+    local ItemLabels = {};
+    local ItemLookup = {};
+    for _, Entry in ipairs(BackgroundItems) do
+        table.insert(ItemLabels, Entry.Name);
+        ItemLookup[Entry.Name] = Entry.Name;
+    end
+
+    local function MapValue(Map, Value)
+        if type(Value) ~= 'string' then return Value end
+        return Map[string.lower(Value)] or Value;
+    end
+
+    local function RefreshKeybindMenu()
+        local Frame = Library.KeybindFrame;
+        if not Frame then return end
+        local Mode = Options[Id('keybind_menu_mode')];
+        Mode = string.lower(tostring(Mode and Mode.Value or 'toggled'));
+        local Shown = Toggles[Id('keybinds')];
+        Shown = Shown and Shown.Value == true;
+        if Mode == 'always' then
+            Shown = true;
+        elseif Mode == 'hidden' then
+            Shown = false;
+        end
+        Frame.Visible = Shown;
+    end
+
+    local function ApplyMenuTransparency(Value)
+        local Outer = Library.KeybindFrame;
+        local Inner = Library.KeybindInner;
+        if not Outer then return end
+        local T = math.clamp(tonumber(Value) or 100, 0, 100) / 100;
+        pcall(function() Outer.BackgroundTransparency = T end);
+        pcall(function() if Inner then Inner.BackgroundTransparency = T end end);
+    end
+
+    MenuPane:AddLabel('menu bind'):AddKeyPicker(Id('menu_bind'), {
+        Default = 'RightShift';
+        NoUI = true;
+        Text = 'menu toggle key';
+        Modes = { 'Toggle' };
+    });
+    Library.ToggleKeybind = Options[Id('menu_bind')];
+    MenuPane:AddToggle(Id('keybinds'), { Text = 'keybind menu', Default = false, Callback = RefreshKeybindMenu });
+    MenuPane:AddSlider(Id('menu_transparency'), {
+        Text = 'menu transparency';
+        Min = 0;
+        Max = 100;
+        Default = 100;
+        Rounding = 0;
+        Suffix = '%';
+        Callback = ApplyMenuTransparency;
+    });
+    MenuPane:AddDropdown(Id('keybind_menu_mode'), {
+        Text = 'keybind menu mode';
+        Values = { 'toggled', 'always', 'hidden' };
+        Default = 'toggled';
+        Callback = RefreshKeybindMenu;
+    });
+    RefreshKeybindMenu();
+    ApplyMenuTransparency(100);
+
+    NotifPane:AddToggle(Id('notify_clip'), {
+        Text = 'clip descendants';
+        Default = true;
+        Callback = function(Value)
+            Library:SetNotificationPosition({ ClipDescendants = Value == true });
+        end;
+    });
+    NotifPane:AddSlider(Id('notify_clip_distance'), {
+        Text = 'clip past distance';
+        Min = 50;
+        Max = 600;
+        Default = 200;
+        Rounding = 0;
+        Suffix = 'px';
+        Callback = function(Value)
+            Library:SetNotificationPosition({ ClipPastDistance = Value });
+        end;
+    });
+    NotifPane:AddToggle(Id('notify_force_color'), {
+        Text = 'force color';
+        Default = false;
+        Callback = function(Value)
+            Library:SetNotificationPosition({ ForceColor = Value == true });
+        end;
+    }):AddColorPicker(Id('notify_force_value'), {
+        Default = Color3.fromRGB(71, 119, 182);
+        Title = 'force color';
+        Callback = function(Color)
+            Library:SetNotificationPosition({ ForceColorValue = Color });
+        end;
+    });
+    NotifPane:AddSlider(Id('notify_pos_x'), {
+        Text = 'position x';
+        Min = 0;
+        Max = 100;
+        Default = 50;
+        Rounding = 0;
+        Suffix = '%';
+        Callback = function(Value)
+            Library:SetNotificationPosition({ ScaleX = Value / 100 });
+        end;
+    });
+    NotifPane:AddSlider(Id('notify_pos_y'), {
+        Text = 'position y';
+        Min = 0;
+        Max = 100;
+        Default = 60;
+        Rounding = 0;
+        Suffix = '%';
+        Callback = function(Value)
+            Library:SetNotificationPosition({ ScaleY = Value / 100 });
+        end;
+    });
+    NotifPane:AddSlider(Id('notify_transparency'), {
+        Text = 'transparency';
+        Min = 0;
+        Max = 100;
+        Default = 25;
+        Rounding = 0;
+        Suffix = '%';
+        Callback = function(Value)
+            Library:SetNotificationPosition({ Transparency = Value / 100 });
+        end;
+    });
+    NotifPane:AddDropdown(Id('notify_alignment'), {
+        Text = 'alignment';
+        Values = { 'left', 'center', 'right' };
+        Default = 'center';
+        Callback = function(Value)
+            Library:SetNotificationPosition({ Alignment = MapValue(AlignmentMap, Value) });
+        end;
+    });
+    NotifPane:AddDropdown(Id('notify_bar_side'), {
+        Text = 'bar side';
+        Values = { 'top', 'bottom', 'left', 'right' };
+        Default = 'bottom';
+        Callback = function(Value)
+            Library:SetNotificationPosition({ BarSide = MapValue(BarSideMap, Value) });
+        end;
+    });
+    NotifPane:AddDropdown(Id('notify_sort'), {
+        Text = 'sort order';
+        Values = { 'default', 'newest first' };
+        Default = 'default';
+        Callback = function(Value)
+            Library:SetNotificationPosition({ SortOrder = MapValue(SortMap, Value) });
+        end;
+    });
+    NotifPane:AddButton('send notification', function()
+        Library:Notify('example notification', 4);
+    end);
+
+    BackgroundPane:AddLabel('item color'):AddColorPicker(Id('background_item_color'), {
+        Default = Color3.fromRGB(255, 255, 255);
+        Title = 'item color';
+        Callback = function(Color)
+            State.Color = Color;
+            State.ApplyItem();
+        end;
+    });
+    BackgroundPane:AddDropdown(Id('background_item'), {
+        Text = 'item';
+        Values = ItemLabels;
+        Default = 'sword';
+        Callback = function(Value)
+            State.SetItem(MapValue(ItemLookup, Value));
+        end;
+    });
+    BackgroundPane:AddSlider(Id('background_item_transparency'), {
+        Text = 'item transparency';
+        Min = 0;
+        Max = 100;
+        Default = 100;
+        Rounding = 0;
+        Suffix = '%';
+        Callback = function(Value)
+            State.Transparency = Value;
+            State.ApplyItem();
+        end;
+    });
+    BackgroundPane:AddSlider(Id('background_reflectance'), {
+        Text = 'reflectance';
+        Min = 0;
+        Max = 100;
+        Default = 0;
+        Rounding = 0;
+        Suffix = '%';
+        Callback = function(Value)
+            State.Reflectance = math.clamp(Value / 100, 0, 1);
+            State.ApplyItem();
+        end;
+    });
+    BackgroundPane:AddSlider(Id('background_speed'), {
+        Text = 'speed';
+        Min = 0;
+        Max = 100;
+        Default = 10;
+        Rounding = 0;
+        Callback = function(Value)
+            State.Speed = Value;
+        end;
+    });
+    BackgroundPane:AddDropdown(Id('background_material'), {
+        Text = 'material';
+        Values = MaterialLabels;
+        Default = 'plastic';
+        Callback = function(Value)
+            local Mapped = MapValue(MaterialLookup, Value);
+            local Ok, Parsed = pcall(function() return Enum.Material[Mapped] end);
+            if Ok and Parsed then
+                State.Material = Parsed;
+                State.ApplyItem();
+            end
+        end;
+    });
+    BackgroundPane:AddDivider();
+    BackgroundPane:AddLabel('background color'):AddColorPicker(Id('background_color'), {
+        Default = Color3.fromRGB(255, 255, 255);
+        Title = 'background color';
+        Callback = function(Color)
+            State.TintColor = Color;
+            State.ApplyTint();
+        end;
+    });
+    BackgroundPane:AddSlider(Id('background_transparency'), {
+        Text = 'background transparency';
+        Min = 0;
+        Max = 100;
+        Default = 100;
+        Rounding = 0;
+        Suffix = '%';
+        Callback = function(Value)
+            State.TintAmount = 100 - Value;
+            State.ApplyTint();
+        end;
+    });
+    BackgroundPane:AddSlider(Id('background_blur'), {
+        Text = 'blur';
+        Min = 0;
+        Max = 100;
+        Default = 0;
+        Rounding = 0;
+        Callback = function(Value)
+            State.Blur.Size = Value;
+            State.Blur.Enabled = Value > 0;
+        end;
+    });
+    BackgroundPane:AddSlider(Id('background_contrast'), {
+        Text = 'contrast';
+        Min = -100;
+        Max = 100;
+        Default = 0;
+        Rounding = 0;
+        Callback = function(Value)
+            State.Correction.Contrast = Value / 100;
+        end;
+    });
+    BackgroundPane:AddSlider(Id('background_saturation'), {
+        Text = 'saturation';
+        Min = -100;
+        Max = 100;
+        Default = 0;
+        Rounding = 0;
+        Callback = function(Value)
+            State.Correction.Saturation = Value / 100;
+        end;
+    });
+    BackgroundPane:AddSlider(Id('background_brightness'), {
+        Text = 'brightness';
+        Min = -100;
+        Max = 100;
+        Default = 0;
+        Rounding = 0;
+        Callback = function(Value)
+            State.Correction.Brightness = Value / 100;
+        end;
+    });
+
+    return {
+        Menu = MenuPane;
+        Notifications = NotifPane;
+        Themes = ThemesPane;
+        Background = BackgroundPane;
+    };
+end
+
 function Library:CreateWindow(...)
     local Arguments = { ... }
     local Config = { AnchorPoint = Vector2.zero }
@@ -3575,30 +4057,21 @@ function Library:CreateWindow(...)
         BorderColor3 = 'OutlineColor';
     });
     Outer.ClipsDescendants = true;
-    local ResizeHandleOuter = Library:Create('Frame', {
-        BackgroundColor3 = Color3.new(0, 0, 0);
-        BackgroundTransparency = 1;
-        BorderSizePixel = 0;
-        Size = UDim2.fromOffset(25, 25);
-        Position = UDim2.new(1, -25, 1, -25);
-        ClipsDescendants = true;
-        ZIndex = 10;
-        Parent = Outer;
-    });
-    local ResizeHandleButton = Library:Create('ImageButton', {
+    local CornerCircle = Library:Create('Frame', {
+        AnchorPoint = Vector2.new(0.5, 0.5);
         BackgroundColor3 = Library.AccentColor;
         BackgroundTransparency = 0.5;
         BorderSizePixel = 0;
-        Size = UDim2.new(2, 0, 2, 0);
-        Position = UDim2.new(1, -30, 1, -30);
-        ZIndex = 11;
-        Parent = ResizeHandleOuter;
+        Position = UDim2.new(1, 0, 1, 0);
+        Size = UDim2.fromOffset(46, 46);
+        ZIndex = 10;
+        Parent = Inner;
     });
     Library:Create('UICorner', {
-        CornerRadius = UDim.new(0.5, 0);
-        Parent = ResizeHandleButton;
+        CornerRadius = UDim.new(1, 0);
+        Parent = CornerCircle;
     });
-    Library:AddToRegistry(ResizeHandleButton, {
+    Library:AddToRegistry(CornerCircle, {
         BackgroundColor3 = 'AccentColor';
     });
     local ResizeWireframe = nil;
@@ -3634,7 +4107,7 @@ function Library:CreateWindow(...)
         ResizeWireframe.Size = newSize;
         ResizeWireframe.Position = Outer.Position;
     end
-    ResizeHandleButton.InputBegan:Connect(function(input)
+    CornerCircle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             if not Library.Toggled then return end
             IsResizing = true;
@@ -3672,7 +4145,7 @@ function Library:CreateWindow(...)
         local TabButton = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
             BorderColor3 = Library.OutlineColor;
-            BorderSizePixel = 2;
+            BorderSizePixel = 1;
             Size = UDim2.new(0, TabButtonWidth + 8 + 4, 0.75, 0);
             ZIndex = 1;
             Parent = TabArea;
