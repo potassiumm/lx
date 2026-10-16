@@ -3473,9 +3473,6 @@ local function EnsureBackground()
 
     local World = Instance.new('WorldModel');
     World.Name = 'world';
-    World.Ambient = Color3.fromRGB(128, 128, 128);
-    World.LightColor = Color3.fromRGB(255, 255, 255);
-    World.LightDirection = Vector3.new(-1, -1, -1);
     World.Parent = Viewport;
 
     local ViewCamera = Instance.new('Camera');
