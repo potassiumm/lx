@@ -3444,6 +3444,44 @@ local function EnsureBackground()
         Blur.Parent = Lighting;
     end
 
+    local GuiHolder = Instance.new('ScreenGui');
+    GuiHolder.Name = 'xyrobackground';
+    GuiHolder.ResetOnSpawn = false;
+    GuiHolder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
+    GuiHolder.DisplayOrder = 1;
+    ProtectGui(GuiHolder);
+    local GuiRoot = CoreGui;
+    pcall(function()
+        if type(gethui) == 'function' then
+            GuiRoot = gethui();
+        end
+    end);
+    GuiHolder.Parent = GuiRoot;
+
+    local Viewport = Instance.new('ViewportFrame');
+    Viewport.Name = 'viewport';
+    Viewport.Size = UDim2.new(1, 0, 1, 0);
+    Viewport.BackgroundColor3 = Color3.new(0, 0, 0);
+    Viewport.BackgroundTransparency = 1;
+    Viewport.BorderSizePixel = 0;
+    Viewport.Active = false;
+    Viewport.Ambient = Color3.fromRGB(128, 128, 128);
+    Viewport.LightColor = Color3.fromRGB(255, 255, 255);
+    Viewport.LightDirection = Vector3.new(-1, -1, -1);
+    Viewport.Visible = false;
+    Viewport.Parent = GuiHolder;
+
+    local World = Instance.new('WorldModel');
+    World.Name = 'world';
+    World.Parent = Viewport;
+
+    local ViewCamera = Instance.new('Camera');
+    ViewCamera.Name = 'camera';
+    ViewCamera.FieldOfView = 70;
+    ViewCamera.CFrame = CFrame.new();
+    ViewCamera.Parent = World;
+    Viewport.CurrentCamera = ViewCamera;
+
     local Item = Instance.new('Part');
     Item.Name = 'backgrounditem';
     Item.Anchored = true;
@@ -3457,6 +3495,7 @@ local function EnsureBackground()
     Item.Transparency = 1;
     Item.Material = Enum.Material.Plastic;
     Item.Reflectance = 0;
+    Item.Parent = World;
 
     local Mesh = Instance.new('SpecialMesh');
     Mesh.MeshType = Enum.MeshType.FileMesh;
@@ -3467,6 +3506,10 @@ local function EnsureBackground()
         Mesh = Mesh;
         Correction = Correction;
         Blur = Blur;
+        Gui = GuiHolder;
+        Viewport = Viewport;
+        World = World;
+        ViewCamera = ViewCamera;
         InsertService = InsertService;
         Union = nil;
         Spin = 0;
@@ -3505,9 +3548,7 @@ local function EnsureBackground()
 
     local function PlaceTarget()
         local Target = State.Union or State.Item;
-        local Camera = workspace.CurrentCamera;
-        if not Camera then return end
-        Target.CFrame = Camera.CFrame * CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
+        Target.CFrame = CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
     end
 
     local function ApplyItem()
@@ -3518,13 +3559,12 @@ local function EnsureBackground()
         Target.Reflectance = State.Reflectance;
         Target.Material = State.Material;
         local Show = IsShown() and T < 1;
+        Target.Parent = State.World;
         if Show then
             PlaceTarget();
         end
-        State.Item.Parent = (Show and not State.Union) and workspace or nil;
-        if State.Union then
-            State.Union.Parent = Show and workspace or nil;
-        end
+        State.Viewport.Visible = Show;
+        State.Gui.Enabled = Show;
     end
 
     local function Refresh()
@@ -3578,16 +3618,16 @@ local function EnsureBackground()
     Library:OnToggle(Refresh);
 
     State.Connection = RunService.RenderStepped:Connect(function(Dt)
-        local Target = State.Union or State.Item;
-        if not Target.Parent then return end
+        if not State.Viewport.Visible then return end
         State.Spin = State.Spin + math.rad(State.Speed) * Dt;
         PlaceTarget();
     end);
 
     Library:OnUnload(function()
         pcall(function() if State.Connection then State.Connection:Disconnect() end end);
-        pcall(function() State.Item:Destroy() end);
+        pcall(function() if State.Gui then State.Gui:Destroy() end end);
         pcall(function() if State.Union then State.Union:Destroy() end end);
+        pcall(function() State.Item:Destroy() end);
         pcall(function() State.Correction:Destroy() end);
         pcall(function() State.Blur:Destroy() end);
     end);
