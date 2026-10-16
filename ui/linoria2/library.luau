@@ -521,6 +521,12 @@ function Library:OnUnload(Callback)
         table.insert(Library.UnloadCallbacks, Callback)
     end
 end
+Library.ToggleCallbacks = {}
+function Library:OnToggle(Callback)
+    if type(Callback) == 'function' then
+        table.insert(Library.ToggleCallbacks, Callback)
+    end
+end
 Library:OnUnload(function()
     pcall(function()
         local Lighting = game:GetService("Lighting")
@@ -3471,10 +3477,15 @@ local function EnsureBackground()
         Material = Enum.Material.Plastic;
         TintColor = Color3.fromRGB(255, 255, 255);
         TintAmount = 0;
+        BlurSize = 0;
         Connection = nil;
     };
 
     local State = BackgroundState;
+
+    local function IsShown()
+        return Library.Toggled == true;
+    end
 
     local function ApplyTint()
         local A = math.clamp(tonumber(State.TintAmount) or 0, 0, 100) / 100;
@@ -3484,6 +3495,19 @@ local function EnsureBackground()
             Keep + State.TintColor.G * A,
             Keep + State.TintColor.B * A
         );
+        State.Correction.Enabled = IsShown();
+    end
+
+    local function ApplyBlur()
+        State.Blur.Size = math.clamp(tonumber(State.BlurSize) or 0, 0, 100);
+        State.Blur.Enabled = IsShown() and State.Blur.Size > 0;
+    end
+
+    local function PlaceTarget()
+        local Target = State.Union or State.Item;
+        local Camera = workspace.CurrentCamera;
+        if not Camera then return end
+        Target.CFrame = Camera.CFrame * CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
     end
 
     local function ApplyItem()
@@ -3493,10 +3517,20 @@ local function EnsureBackground()
         Target.Color = State.Color;
         Target.Reflectance = State.Reflectance;
         Target.Material = State.Material;
-        State.Item.Parent = (T < 1 and not State.Union) and workspace or nil;
-        if State.Union then
-            State.Union.Parent = T < 1 and workspace or nil;
+        local Show = IsShown() and T < 1;
+        if Show then
+            PlaceTarget();
         end
+        State.Item.Parent = (Show and not State.Union) and workspace or nil;
+        if State.Union then
+            State.Union.Parent = Show and workspace or nil;
+        end
+    end
+
+    local function Refresh()
+        ApplyTint();
+        ApplyBlur();
+        ApplyItem();
     end
 
     local function SetItem(Name)
@@ -3536,16 +3570,18 @@ local function EnsureBackground()
     end
 
     State.ApplyTint = ApplyTint;
+    State.ApplyBlur = ApplyBlur;
     State.ApplyItem = ApplyItem;
     State.SetItem = SetItem;
+    State.Refresh = Refresh;
+
+    Library:OnToggle(Refresh);
 
     State.Connection = RunService.RenderStepped:Connect(function(Dt)
         local Target = State.Union or State.Item;
         if not Target.Parent then return end
-        local Camera = workspace.CurrentCamera;
-        if not Camera then return end
         State.Spin = State.Spin + math.rad(State.Speed) * Dt;
-        Target.CFrame = Camera.CFrame * CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
+        PlaceTarget();
     end);
 
     Library:OnUnload(function()
@@ -3556,8 +3592,7 @@ local function EnsureBackground()
         pcall(function() State.Blur:Destroy() end);
     end);
 
-    ApplyTint();
-    ApplyItem();
+    Refresh();
 
     return BackgroundState;
 end
@@ -3844,8 +3879,8 @@ function Library:CreateSettingsPanes(Tab, Config)
         Default = 0;
         Rounding = 0;
         Callback = function(Value)
-            State.Blur.Size = Value;
-            State.Blur.Enabled = Value > 0;
+            State.BlurSize = Value;
+            State.ApplyBlur();
         end;
     });
     BackgroundPane:AddSlider(Id('background_contrast'), {
@@ -4370,7 +4405,7 @@ function Library:CreateWindow(...)
                 local Tab = {};
                 local Button = Library:Create('Frame', {
                     BackgroundColor3 = Library.MainColor;
-                    BorderColor3 = Color3.new(0, 0, 0);
+                    BorderSizePixel = 0;
                     Size = UDim2.new(0.5, 0, 1, 0);
                     ZIndex = 6;
                     Parent = TabboxButtons;
@@ -4612,6 +4647,9 @@ function Library:CreateWindow(...)
         else
             Library.BlurEffect.Size = 0
             Library.BlurEffect.Enabled = false
+        end
+        for _, Callback in ipairs(Library.ToggleCallbacks) do
+            pcall(Callback, Library.Toggled)
         end
     end
     if not Library.ToggleSignalConnected then
