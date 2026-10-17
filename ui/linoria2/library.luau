@@ -407,8 +407,9 @@ function Library:OnHighlight(HighlightInstance, Instance, Properties, Properties
         end;
     end)
 end;
-function Library:AddHoverScale(Instance, Amount)
+function Library:AddHoverScale(Instance, Amount, Info)
     Amount = Amount or 1.03;
+    Info = Info or TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
     local Scale = Instance:FindFirstChildOfClass('UIScale');
     if (not Scale) then
         Scale = Library:Create('UIScale', {
@@ -417,7 +418,7 @@ function Library:AddHoverScale(Instance, Amount)
         });
     end;
     local function TweenTo(Value)
-        local Tween = TweenService:Create(Scale, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = Value });
+        local Tween = TweenService:Create(Scale, Info, { Scale = Value });
         Tween:Play();
     end;
     Instance.MouseEnter:Connect(function()
@@ -3440,9 +3441,9 @@ end;
 local BackgroundItems = {
     { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1 };
     { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 1 };
-    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 1 };
-    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.04 };
-    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.35 };
+    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 0.71 };
+    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.67 };
+    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.94 };
     { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 0.5 };
 }
 
@@ -3491,8 +3492,8 @@ local function EnsureBackground()
     Viewport.BackgroundTransparency = 1;
     Viewport.BorderSizePixel = 0;
     Viewport.Active = false;
-    Viewport.Ambient = Color3.fromRGB(128, 128, 128);
-    Viewport.LightColor = Color3.fromRGB(255, 255, 255);
+    Viewport.Ambient = Color3.fromRGB(200, 200, 200);
+    Viewport.LightColor = Color3.fromRGB(140, 140, 140);
     Viewport.LightDirection = Vector3.new(-1, -1, -1);
     Viewport.Visible = false;
     Viewport.Parent = GuiHolder;
@@ -3525,12 +3526,19 @@ local function EnsureBackground()
 
     local Mesh = Instance.new('SpecialMesh');
     Mesh.MeshType = Enum.MeshType.FileMesh;
-    Mesh.Scale = Vector3.new(1, 1, 0.04);
+    Mesh.Scale = Vector3.new(1, 1, 1);
     Mesh.Parent = Item;
+
+    local Thumb = Instance.new('Decal');
+    Thumb.Name = 'thumbnail';
+    Thumb.Face = Enum.NormalId.Front;
+    Thumb.Texture = '';
+    Thumb.Parent = Item;
 
     BackgroundState = {
         Item = Item;
         Mesh = Mesh;
+        Thumb = Thumb;
         Correction = Correction;
         Blur = Blur;
         Gui = GuiHolder;
@@ -3538,7 +3546,8 @@ local function EnsureBackground()
         World = World;
         ViewCamera = ViewCamera;
         InsertService = InsertService;
-        Union = nil;
+        Marketplace = game:GetService('MarketplaceService');
+        Loaded = nil;
         Spin = 0;
         Speed = 10;
         Transparency = 100;
@@ -3548,8 +3557,7 @@ local function EnsureBackground()
         TintColor = Color3.fromRGB(255, 255, 255);
         TintAmount = 0;
         BlurSize = 0;
-        TargetSize = 4;
-        Thickness = 0.12;
+        TargetSize = 5;
         Connection = nil;
     };
 
@@ -3576,20 +3584,21 @@ local function EnsureBackground()
     end
 
     local function PlaceTarget()
-        local Target = State.Union or State.Item;
+        local Target = State.Loaded or State.Item;
         Target.CFrame = CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
     end
 
     local function ApplyItem()
-        local Target = State.Union or State.Item;
+        local Target = State.Loaded or State.Item;
         local T = math.clamp(tonumber(State.Transparency) or 100, 0, 100) / 100;
         Target.Transparency = T;
         Target.Color = State.Color;
         pcall(function() Target.Reflectance = State.Reflectance end);
-        Target.Material = State.Material;
+        pcall(function() Target.Material = State.Material end);
+        pcall(function() State.Item.Material = State.Material end);
         local Show = IsShown() and T < 1;
         Target.Parent = State.World;
-        if State.Union then
+        if State.Loaded then
             State.Item.Parent = nil;
         end
         if Show then
@@ -3605,38 +3614,49 @@ local function EnsureBackground()
         ApplyItem();
     end
 
-    local function LoadUnionPart(Def)
-        local Digits = Def.Id:match('%d+');
+    local function LoadAssetContainer(AssetId)
+        local Digits = tostring(AssetId):match('%d+');
         if not Digits then return nil end
         local Container = nil;
         if type(game.GetObjects) == 'function' then
-            local Ok, Objects = pcall(function() return game:GetObjects('rbxassetid://' .. Digits) end);
-            if Ok and type(Objects) == 'table' then
-                for _, Obj in ipairs(Objects) do
-                    if typeof(Obj) == 'Instance' then
-                        Container = Obj;
-                        break;
-                    end
-                end
-            end
-        end
+            for _, Prefix in ipairs({ 'rbxassetid://', 'http://www.roblox.com/asset/?id=' }) do
+                local Ok, Objects = pcall(function() return game:GetObjects(Prefix .. Digits) end);
+                if Ok and type(Objects) == 'table' then
+                    for _, Obj in ipairs(Objects) do
+                        if typeof(Obj) == 'Instance' then
+                            Container = Obj;
+                            break;
+                        end;
+                    end;
+                end;
+                if Container then break end;
+            end;
+        end;
         if not Container then
             local Ok, Result = pcall(function() return State.InsertService:LoadAsset(tonumber(Digits)) end);
-            if Ok and Result then
+            if Ok and typeof(Result) == 'Instance' then
                 Container = Result;
-            end
-        end
+            end;
+        end;
+        return Container;
+    end
+
+    local function LoadAssetPart(AssetId)
+        local Container = LoadAssetContainer(AssetId);
         if not Container then return nil end
         local Found = nil;
-        pcall(function() Found = Container:FindFirstChildWhichIsA('BasePart', true) end);
-        if not Found and Container:IsA('BasePart') then
+        if Container:IsA('BasePart') then
             Found = Container;
-        end
+        else
+            pcall(function() Found = Container:FindFirstChildWhichIsA('BasePart', true) end);
+        end;
         local Cloned = nil;
         if Found then
             Cloned = Found:Clone();
-        end
-        pcall(function() Container:Destroy() end);
+        end;
+        if Found ~= Container then
+            pcall(function() Container:Destroy() end);
+        end;
         if not Cloned then return nil end
         Cloned.Anchored = true;
         Cloned.CanCollide = false;
@@ -3645,6 +3665,16 @@ local function EnsureBackground()
         Cloned.CastShadow = false;
         Cloned.Massless = true;
         return Cloned;
+    end
+
+    local function LoadAssetThumbnail(AssetId)
+        local Digits = tostring(AssetId):match('%d+');
+        if not Digits then return nil end
+        local Info = nil;
+        pcall(function() Info = State.Marketplace:GetProductInfo(tonumber(Digits), Enum.InfoType.Asset) end);
+        local Url = type(Info) == 'table' and Info.ImageUrl or nil;
+        if type(Url) ~= 'string' or Url == '' then return nil end
+        return Url;
     end
 
     local function FitTarget(Target, Scale)
@@ -3656,7 +3686,22 @@ local function EnsureBackground()
             pcall(function() Target:ScaleTo(Factor) end);
             return
         end
-        Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, State.Thickness);
+        Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, Size.Z * Factor);
+    end
+
+    local function FitMesh(Scale)
+        local Item, Mesh = State.Item, State.Mesh;
+        local Applied = math.max(tonumber(Scale) or 1, 0.001);
+        Mesh.Scale = Vector3.new(Applied, Applied, Applied);
+        task.spawn(function()
+            pcall(function() RunService.RenderStepped:Wait() end);
+            local Ok, Extents = pcall(function() return Item:GetExtentsSize() end);
+            if not Ok or typeof(Extents) ~= 'Vector3' then return end
+            local Max = math.max(Extents.X, Extents.Y);
+            if Max <= 0 then return end
+            local Factor = (State.TargetSize * Applied) / Max;
+            Mesh.Scale = Vector3.new(Applied * Factor, Applied * Factor, Applied * Factor);
+        end);
     end
 
     local function SetItem(Name)
@@ -3668,27 +3713,34 @@ local function EnsureBackground()
             end
         end
         if not Def then return end
-        if State.Union then
-            pcall(function() State.Union:Destroy() end);
-            State.Union = nil;
+        if State.Loaded then
+            pcall(function() State.Loaded:Destroy() end);
+            State.Loaded = nil;
         end
+        State.Thumb.Texture = '';
+        State.Mesh.MeshId = '';
+        State.Mesh.Parent = State.Item;
         State.Item.Parent = State.World;
         local Scale = tonumber(Def.Scale) or 1;
-        local Loaded = nil;
-        if Def.Union then
-            Loaded = LoadUnionPart(Def);
-            if not Loaded then
-                pcall(function() Library:Notify('failed to load background item: ' .. tostring(Name), 4) end);
-            end
-        end
+        local Loaded = LoadAssetPart(Def.Id);
         if Loaded then
-            State.Union = Loaded;
+            State.Loaded = Loaded;
             pcall(function() FitTarget(Loaded, Scale) end);
             State.Item.Parent = nil;
+        elseif Def.Union then
+            task.spawn(function()
+                local Url = LoadAssetThumbnail(Def.Id);
+                if State.Loaded ~= nil then return end
+                if State.Mesh.MeshId ~= '' or not State.Item.Parent then return end
+                if Url then
+                    State.Mesh.Parent = nil;
+                    State.Thumb.Texture = Url;
+                end
+            end);
         else
-            State.Mesh.MeshId = Def.Union and '' or Def.Id;
-            local Flat = State.Thickness / State.TargetSize;
-            State.Mesh.Scale = Vector3.new(Scale, Scale, Scale * Flat); end
+            State.Mesh.MeshId = Def.Id;
+            FitMesh(Scale);
+        end
         ApplyItem();
     end
 
@@ -3709,7 +3761,7 @@ local function EnsureBackground()
     Library:OnUnload(function()
         pcall(function() if State.Connection then State.Connection:Disconnect() end end);
         pcall(function() if State.Gui then State.Gui:Destroy() end end);
-        pcall(function() if State.Union then State.Union:Destroy() end end);
+        pcall(function() if State.Loaded then State.Loaded:Destroy() end end);
         pcall(function() State.Item:Destroy() end);
         pcall(function() State.Correction:Destroy() end);
         pcall(function() State.Blur:Destroy() end);
@@ -3754,7 +3806,7 @@ function Library:CreateSettingsPanes(Tab, Config)
     local MaterialLookup = {};
     for _, Entry in ipairs(MaterialNames) do
         table.insert(MaterialLabels, Entry.Label);
-        MaterialLookup[Entry.Label] = Entry.Value;
+        MaterialLookup[Entry.Label] = Enum.Material[Entry.Value] or Entry.Value;
     end
 
     local ItemLabels = {};
@@ -3966,9 +4018,12 @@ function Library:CreateSettingsPanes(Tab, Config)
         Values = MaterialLabels;
         Default = 'plastic';
         Callback = function(Value)
-            local Mapped = MapValue(MaterialLookup, Value);
-            local Ok, Parsed = pcall(function() return Enum.Material[Mapped] end);
-            if Ok and Parsed then
+            local Parsed = MaterialLookup[Value];
+            if typeof(Parsed) ~= 'EnumItem' and type(Value) == 'string' then
+                local Ok, Found = pcall(function() return Enum.Material[Value] end);
+                if Ok then Parsed = Found end;
+            end
+            if typeof(Parsed) == 'EnumItem' then
                 State.Material = Parsed;
                 State.ApplyItem();
             end
@@ -4548,7 +4603,8 @@ function Library:CreateWindow(...)
                     BorderSizePixel = 1;
                     BorderColor3 = Library.OutlineColor;
                     BorderMode = Enum.BorderMode.Inset;
-                    Size = UDim2.new(1, 0, 1, 0);
+                    Position = UDim2.new(0, -1, 0, -1);
+                    Size = UDim2.new(1, 2, 1, 1);
                     ZIndex = 7;
                     Parent = Button;
                 });
