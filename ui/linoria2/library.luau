@@ -65,7 +65,7 @@ local Library = {
         ScaleX = 0.5;
         ScaleY = 0.6;
         AnchorPoint = Vector2.new(0.5, 0);
-        Transparency = 0.25;
+        Transparency = 0.65;
         ClipDescendants = true;
         ClipPastDistance = 200;
         ForceColor = false;
@@ -3456,12 +3456,12 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 local BackgroundItems = {
-    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1 };
-    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 1 };
-    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 1 };
-    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 1 };
-    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 1 };
-    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 1 };
+    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1, MeshMax = 4.652864933013916 };
+    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 0.8333333333333334, MeshMax = 4 };
+    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 0.7104166666666667, MeshMax = 0.895002007484436 };
+    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.6741145833333333, MeshMax = 831.2340087890625 };
+    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.9375 };
+    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 0.5 };
 }
 
 local BackgroundState = nil
@@ -3692,7 +3692,9 @@ local function EnsureBackground()
         local Info = nil;
         pcall(function() Info = State.Marketplace:GetProductInfo(tonumber(Digits), Enum.InfoType.Asset) end);
         local Url = type(Info) == 'table' and Info.ImageUrl or nil;
-        if type(Url) ~= 'string' or Url == '' then return nil end
+        if type(Url) ~= 'string' or Url == '' then
+            Url = 'rbxthumb://type=Asset&id=' .. Digits .. '&w=420&h=420';
+        end
         return Url;
     end
 
@@ -3700,8 +3702,7 @@ local function EnsureBackground()
         local Size = Target.Size;
         local Max = math.max(Size.X, Size.Y);
         if Max <= 0 then return end
-        local Reference = tonumber(State.ReferenceSize) or Max;
-        local Factor = (State.TargetSize * (tonumber(Scale) or 1)) / Reference;
+        local Factor = (State.TargetSize * (tonumber(Scale) or 1)) / Max;
         pcall(function() print(('[xyro-bg] fit %s size=%s factor=%.3f'):format(tostring(Target.Name), tostring(Size), Factor)) end);
         if Target:IsA('UnionOperation') then
             pcall(function() Target:ScaleTo(Factor) end);
@@ -3710,38 +3711,18 @@ local function EnsureBackground()
         Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, Size.Z * Factor);
     end
 
-    local function FitMesh(Scale)
-        local Item, Mesh = State.Item, State.Mesh;
+    local function FitMesh(Scale, MeshMax)
+        local Mesh = State.Mesh;
         local Applied = math.max(tonumber(Scale) or 1, 0.001);
+        local Native = tonumber(MeshMax);
+        if not Native or Native <= 0 then
+            Mesh.Scale = Vector3.new(Applied, Applied, Applied)
+            return
+        end
         local Target = State.TargetSize * Applied;
-        Mesh.Scale = Vector3.new(Applied, Applied, Applied);
-        task.spawn(function()
-            for _ = 1, 20 do
-                pcall(function() RunService.RenderStepped:Wait() end);
-            end
-            local Original = Item.Size;
-            local Probe = nil;
-            pcall(function() Item.Size = Vector3.new(0.02, 0.02, 0.02) end);
-            pcall(function() RunService.RenderStepped:Wait() end);
-            pcall(function() RunService.RenderStepped:Wait() end);
-            local Ok, Extents = pcall(function() return Item:GetExtentsSize() end);
-            pcall(function() Item.Size = Original end);
-            if Ok and typeof(Extents) == 'Vector3' then
-                local Max = math.max(Extents.X, Extents.Y);
-                if Max > 0.5 then Probe = Max end
-            end
-            if Probe and Probe > 0 then
-                local Factor = Target / Probe;
-                Mesh.Scale = Vector3.new(Applied * Factor, Applied * Factor, Applied * Factor);
-                pcall(function() print(('[xyro-bg] mesh probe=%.3f factor=%.3f'):format(Probe, Factor)) end);
-                return
-            end
-            local Base = math.max(Original.X, Original.Y);
-            local Reference = tonumber(State.ReferenceSize) or Base;
-            local Factor = Target / Reference;
-            Mesh.Scale = Vector3.new(Factor, Factor, Factor);
-            pcall(function() print(('[xyro-bg] mesh fallback reference=%.3f factor=%.3f'):format(Reference, Factor)) end);
-        end);
+        local Factor = Target / Native;
+        Mesh.Scale = Vector3.new(Factor, Factor, Factor);
+        pcall(function() print(('[xyro-bg] mesh scale=%.6f target=%.3f native=%.3f'):format(Factor, Target, Native)) end);
     end
 
     local function SetItem(Name)
@@ -3779,7 +3760,7 @@ local function EnsureBackground()
                     pcall(function()
                         local Base = math.max(State.Item.Size.X, State.Item.Size.Y);
                         if Base <= 0 then return end
-                        local Factor = State.TargetSize / Base;
+                        local Factor = (State.TargetSize * Scale) / Base;
                         State.Item.Size = Vector3.new(
                             State.Item.Size.X * Factor,
                             State.Item.Size.Y * Factor,
@@ -3791,7 +3772,7 @@ local function EnsureBackground()
             end);
         else
             State.Mesh.MeshId = Def.Id;
-            FitMesh(Scale);
+            FitMesh(Scale, Def.MeshMax);
         end
         ApplyItem();
     end
@@ -4650,9 +4631,7 @@ function Library:CreateWindow(...)
                 local Tab = {};
                 local Button = Library:Create('Frame', {
                     BackgroundColor3 = Library.MainColor;
-                    BorderColor3 = Color3.new(0, 0, 0);
-                    BorderMode = Enum.BorderMode.Inset;
-                    BorderSizePixel = 1;
+                    BorderSizePixel = 0;
                     Size = UDim2.new(0.5, 0, 1, 0);
                     ZIndex = 6;
                     Parent = TabboxButtons;
