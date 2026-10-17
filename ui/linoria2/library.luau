@@ -3630,11 +3630,17 @@ local function EnsureBackground()
         Log('preload %s ok=%s err=%s', tostring(Part.Name), tostring(Ok), tostring(Ok and '' or Err));
     end
 
-    local function ReadBounds(Part, IsMesh)
-        if IsMesh then
+    local function ReadBounds(Part)
+        if Part:IsA('MeshPart') then
             local Ok, MeshSize = pcall(function() return Part.MeshSize end);
             if Ok and typeof(MeshSize) == 'Vector3' and MeshSize.X > 0 and MeshSize.Y > 0 then
                 return MeshSize;
+            end
+            if type(gethiddenproperty) == 'function' then
+                local Ok2, Hidden = pcall(function() return gethiddenproperty(Part, 'MeshSize') end);
+                if Ok2 and typeof(Hidden) == 'Vector3' and Hidden.X > 0 and Hidden.Y > 0 then
+                    return Hidden;
+                end
             end
             return nil;
         end
@@ -3643,26 +3649,40 @@ local function EnsureBackground()
         return nil;
     end
 
-    local function ScaleUniform(Part, Scale)
-        local Bounds = ReadBounds(Part, Part:IsA('MeshPart'));
-        if not Bounds then
-            Log('scale skip %s no bounds', tostring(Part.Name));
-            return;
+    local function AwaitBounds(Part, Initial)
+        local Step = 0;
+        while Step < 150 do
+            local Bounds = ReadBounds(Part);
+            if Bounds and (Initial == nil or Bounds.X ~= Initial.X or Bounds.Y ~= Initial.Y or Bounds.Z ~= Initial.Z) then
+                Log('bounds %s steps=%d value=%s', tostring(Part.Name), Step, tostring(Bounds));
+                return Bounds;
+            end
+            if Step % 25 == 0 then
+                Log('bounds wait %s step=%d value=%s', tostring(Part.Name), Step, tostring(Bounds));
+            end
+            task.wait(0.1);
+            Step = Step + 1;
         end
-        local MaxD = math.max(Bounds.X, Bounds.Y, Bounds.Z);
-        if MaxD <= 0 then
-            Log('scale skip %s maxd=%s', tostring(Part.Name), tostring(MaxD));
-            return;
-        end
+        local Bounds = ReadBounds(Part);
+        Log('bounds timeout %s value=%s', tostring(Part.Name), tostring(Bounds));
+        return Bounds;
+    end
+
+    local function ScaleUniform(Part, Scale, Bounds)
         local Target = math.min(State.TargetSize * (tonumber(Scale) or 1), 4);
-        local Factor = Target / MaxD;
-        if Part:IsA('UnionOperation') then
-            pcall(function() Part:ScaleTo(Factor) end);
-            pcall(function() Part.Size = Vector3.new(Part.Size.X * 0.5, Part.Size.Y, Part.Size.Z) end);
-        else
-            pcall(function() Part.Size = Vector3.new(Bounds.X * Factor * 0.5, Bounds.Y * Factor, Bounds.Z * Factor) end);
+        local MaxD = Bounds and math.max(Bounds.X, Bounds.Y, Bounds.Z) or 0;
+        if MaxD > 0 then
+            local Factor = Target / MaxD;
+            if Part:IsA('UnionOperation') then
+                pcall(function() Part:ScaleTo(Factor) end);
+            else
+                pcall(function() Part.Size = Vector3.new(Bounds.X * Factor, Bounds.Y * Factor, Bounds.Z * Factor) end);
+            end
+            Log('scale %s factor=%.6f bounds=%s size=%s', tostring(Part.Name), Factor, tostring(Bounds), tostring(Part.Size));
+            return;
         end
-        Log('scale %s factor=%.6f bounds=%s size=%s', tostring(Part.Name), Factor, tostring(Bounds), tostring(Part.Size));
+        pcall(function() Part.Size = Vector3.new(2, Part.Size.Y, Part.Size.Z) end);
+        Log('scale fallback %s no bounds box=%s', tostring(Part.Name), tostring(Part.Size));
     end
 
     local function BuildItem(Def)
@@ -3788,6 +3808,7 @@ local function EnsureBackground()
         local Def = Entry.Def;
         local Scale = tonumber(Def.Scale) or 1;
         local Part = Entry.Part;
+        local Initial = nil;
         if Def.Union then
             local Real = TryGetObjects(Def.Id);
             if Real then
@@ -3795,6 +3816,7 @@ local function EnsureBackground()
                 Part = Entry.Part;
                 Log('union primary %s via=getobjects class=%s', tostring(Def.Name), Part.ClassName);
             else
+                Initial = Part.Size;
                 SetUnionAsset(Part, Def.Id);
                 Log('union fallback %s via=setscriptable', tostring(Def.Name));
             end
@@ -3803,7 +3825,8 @@ local function EnsureBackground()
             Log('mesh set id=%s name=%s', tostring(Def.Id), tostring(Def.Name));
         end
         LoadContent(Part);
-        ScaleUniform(Part, Scale);
+        local Bounds = AwaitBounds(Part, Initial);
+        ScaleUniform(Part, Scale, Bounds);
         Log('item ready name=%s class=%s size=%s', tostring(Def.Name), tostring(Part.ClassName), tostring(Part.Size));
         ApplyItem();
     end
