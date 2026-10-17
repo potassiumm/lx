@@ -3609,13 +3609,16 @@ local function EnsureBackground()
     local function ApplyMaterial(Target, Material)
         if not Target then return end
         pcall(function() Target.Material = Material end);
+        local Applied = 0;
         pcall(function()
             for _, Child in ipairs(Target:GetDescendants()) do
                 if Child:IsA('BasePart') then
                     Child.Material = Material;
+                    Applied = Applied + 1;
                 end
             end
         end);
+        pcall(function() print(('[xyro-bg] material applied target=%s material=%s parts=%d'):format(tostring(Target.Name), tostring(Material), Applied)) end);
     end
 
     local function ApplyItem()
@@ -3678,7 +3681,7 @@ local function EnsureBackground()
             if Container then
                 print(('[xyro-bg] container loaded id=%s class=%s'):format(Digits, Container.ClassName));
             else
-                print(('[xyro-bg] container failed id=%s %s'):format(Digits, table.concat(Errors, ' | ')));
+                print(('[xyro-bg] container blocked id=%s (roblox disallows LoadAsset from client) %s'):format(Digits, table.concat(Errors, ' | ')));
             end
         end);
         return Container;
