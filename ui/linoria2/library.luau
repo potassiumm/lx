@@ -3460,8 +3460,8 @@ local BackgroundItems = {
     { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 0.8333333333333334, MeshMax = 4 };
     { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 0.7104166666666667, MeshMax = 0.895002007484436 };
     { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.6741145833333333, MeshMax = 831.2340087890625 };
-    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.9375 };
-    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 0.5 };
+    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.9375, MeshMax = 9 };
+    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 0.5, MeshMax = 4.8 };
 }
 
 local BackgroundState = nil
@@ -3685,18 +3685,91 @@ local function EnsureBackground()
     end
     LoadAssetContainer = with_identity(8, LoadAssetContainer);
 
+    local function DescribeAssetTree(Container)
+        local Parts = {};
+        local Seen = {};
+        pcall(function()
+            for _, Descendant in ipairs(Container:GetDescendants()) do
+                local ClassName = Descendant.ClassName;
+                Seen[ClassName] = (Seen[ClassName] or 0) + 1;
+                if #Parts < 8 and Descendant:IsA('BasePart') then
+                    table.insert(Parts, ClassName .. ':' .. Descendant.Name);
+                end;
+            end;
+        end);
+        local Names = {};
+        for ClassName, Count in pairs(Seen) do
+            table.insert(Names, ClassName .. 'x' .. tostring(Count));
+        end;
+        table.sort(Names);
+        return 'root=' .. Container.ClassName .. ' kids=' .. tostring(#Names) .. ' {' .. table.concat(Names, ', ') .. '} parts={' .. table.concat(Parts, ', ') .. '}';
+    end
+
     local function LoadAssetPart(AssetId)
         local Container = LoadAssetContainer(AssetId);
         if not Container then return nil end
         local Found = nil;
+        local SearchError = nil;
         if Container:IsA('BasePart') then
             Found = Container;
         else
-            pcall(function() Found = Container:FindFirstChildWhichIsA('BasePart', true) end);
+            local Ok, Result = pcall(function() return Container:FindFirstChildWhichIsA('BasePart', true) end);
+            if Ok then
+                Found = Result;
+            else
+                SearchError = tostring(Result);
+            end;
+        end;
+        if Found == nil and SearchError == nil then
+            pcall(function()
+                for _, Descendant in ipairs(Container:GetDescendants()) do
+                    if Descendant:IsA('BasePart') then
+                        Found = Descendant;
+                        break;
+                    end;
+                end;
+            end);
+        end;
+        if Found == nil then
+            local MeshId = nil;
+            local TextureId = nil;
+            pcall(function()
+                for _, Key in ipairs({ 'MeshId', 'MeshID' }) do
+                    local Value = Container[Key];
+                    if type(Value) == 'string' and Value ~= '' then
+                        MeshId = Value;
+                        break;
+                    end;
+                end;
+            end);
+            pcall(function()
+                for _, Key in ipairs({ 'TextureID', 'TextureId' }) do
+                    local Value = Container[Key];
+                    if type(Value) == 'string' and Value ~= '' then
+                        TextureId = Value;
+                        break;
+                    end;
+                end;
+            end);
+            if MeshId then
+                pcall(function()
+                    local Built = Instance.new('MeshPart');
+                    Built.MeshId = MeshId;
+                    if TextureId then
+                        Built.TextureID = TextureId;
+                    end;
+                    Found = Built;
+                end);
+            end;
+        end;
+        if Found == nil then
+            pcall(function()
+                print(('[xyro-bg] no part id=%s %s error=%s'):format(tostring(AssetId), DescribeAssetTree(Container), tostring(SearchError)));
+            end);
         end;
         local Cloned = nil;
         if Found then
-            Cloned = Found:Clone();
+            pcall(function() Cloned = Found:Clone() end);
         end;
         if Found ~= Container then
             pcall(function() Container:Destroy() end);
@@ -3710,6 +3783,7 @@ local function EnsureBackground()
         Cloned.Massless = true;
         return Cloned;
     end
+    LoadAssetPart = with_identity(8, LoadAssetPart);
 
     local function LoadAssetThumbnail(AssetId)
         local Digits = tostring(AssetId):match('%d+');
@@ -3722,6 +3796,24 @@ local function EnsureBackground()
         end
         return Url;
     end
+
+    local AssetTypeCache = {};
+    local function AssetKind(AssetId)
+        local Digits = tostring(AssetId):match('%d+');
+        if not Digits then return nil end
+        local Cached = AssetTypeCache[Digits];
+        if Cached ~= nil then
+            if Cached == false then return nil end
+            return Cached;
+        end
+        local Info = nil;
+        pcall(function() Info = State.Marketplace:GetProductInfo(tonumber(Digits), Enum.InfoType.Asset) end);
+        local Kind = type(Info) == 'table' and tonumber(Info.AssetTypeId) or nil;
+        AssetTypeCache[Digits] = Kind == nil and false or Kind;
+        if Kind == nil then return nil end
+        return Kind;
+    end
+    AssetKind = with_identity(8, AssetKind);
 
     local function FitTarget(Target, Scale)
         local Size = Target.Size;
@@ -3788,26 +3880,33 @@ local function EnsureBackground()
             pcall(function() FitTarget(Loaded, Scale) end);
             State.Item.Parent = nil;
         elseif Def.Union then
-            task.spawn(function()
-                local Url = LoadAssetThumbnail(Def.Id);
-                if State.Loaded ~= nil then return end
-                if State.Mesh.MeshId ~= '' or not State.Item.Parent then return end
-                pcall(function() print(('[xyro-bg] union thumbnail %s -> %s'):format(tostring(Def.Id), tostring(Url))) end);
-                if Url then
-                    State.Mesh.Parent = nil;
-                    pcall(function()
-                        local Base = math.max(State.Item.Size.X, State.Item.Size.Y);
-                        if Base <= 0 then return end
-                        local Factor = (State.TargetSize * Scale) / Base;
-                        State.Item.Size = Vector3.new(
-                            State.Item.Size.X * Factor,
-                            State.Item.Size.Y * Factor,
-                            State.Item.Size.Z * Factor
-                        );
-                    end);
-                    State.Thumb.Texture = Url;
-                end
-            end);
+            local Kind = AssetKind(Def.Id);
+            pcall(function() print(('[xyro-bg] union asset id=%s type=%s'):format(tostring(Def.Id), tostring(Kind))) end);
+            if Kind == nil or Kind == 4 then
+                State.Mesh.MeshId = Def.Id;
+                FitMesh(Scale, Def.MeshMax);
+            else
+                task.spawn(function()
+                    local Url = LoadAssetThumbnail(Def.Id);
+                    if State.Loaded ~= nil then return end
+                    if State.Mesh.MeshId ~= '' or not State.Item.Parent then return end
+                    pcall(function() print(('[xyro-bg] union thumbnail %s -> %s'):format(tostring(Def.Id), tostring(Url))) end);
+                    if Url then
+                        State.Mesh.Parent = nil;
+                        pcall(function()
+                            local Base = math.max(State.Item.Size.X, State.Item.Size.Y);
+                            if Base <= 0 then return end
+                            local Factor = (State.TargetSize * Scale) / Base;
+                            State.Item.Size = Vector3.new(
+                                State.Item.Size.X * Factor,
+                                State.Item.Size.Y * Factor,
+                                State.Item.Size.Z * Factor
+                            );
+                        end);
+                        State.Thumb.Texture = Url;
+                    end
+                end);
+            end
         else
             State.Mesh.MeshId = Def.Id;
             FitMesh(Scale, Def.MeshMax);
@@ -4002,7 +4101,7 @@ function Library:CreateSettingsPanes(Tab, Config)
         Text = 'transparency';
         Min = 0;
         Max = 100;
-        Default = 25;
+        Default = 65;
         Rounding = 0;
         Suffix = '%';
         Callback = function(Value)
