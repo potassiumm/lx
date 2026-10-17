@@ -12,14 +12,12 @@ local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
-ScreenGui.IgnoreGuiInset = true;
 ScreenGui.Parent = CoreGui;
 local MobileGuiRef = nil;
 local DropdownGui = Instance.new('ScreenGui');
 ProtectGui(DropdownGui);
 DropdownGui.ResetOnSpawn = false;
 DropdownGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
-DropdownGui.IgnoreGuiInset = true;
 DropdownGui.DisplayOrder = 1000;
 DropdownGui.Parent = CoreGui;
 local function with_identity(level, fn)
@@ -5223,7 +5221,6 @@ Players.PlayerRemoving:Connect(OnPlayerChange);
 if InputService.TouchEnabled then
     local MobileGui = Instance.new("ScreenGui")
     MobileGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-    MobileGui.IgnoreGuiInset = true
     ProtectGui(MobileGui)
     MobileGui.Parent = CoreGui
     MobileGuiRef = MobileGui
@@ -5368,7 +5365,6 @@ function Library:CreatePopout(Config)
     ProtectGui(PopoutGui)
     PopoutGui.ResetOnSpawn = false
     PopoutGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-    PopoutGui.IgnoreGuiInset = true
     PopoutGui.DisplayOrder = (Config.DisplayOrder or 0) + 19
     local PopoutRoot = CoreGui
     pcall(function()
