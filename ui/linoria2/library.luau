@@ -12,12 +12,14 @@ local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+ScreenGui.IgnoreGuiInset = true;
 ScreenGui.Parent = CoreGui;
 local MobileGuiRef = nil;
 local DropdownGui = Instance.new('ScreenGui');
 ProtectGui(DropdownGui);
 DropdownGui.ResetOnSpawn = false;
 DropdownGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+DropdownGui.IgnoreGuiInset = true;
 DropdownGui.DisplayOrder = 1000;
 DropdownGui.Parent = CoreGui;
 local function with_identity(level, fn)
@@ -3491,6 +3493,7 @@ local function EnsureBackground()
     local GuiHolder = Instance.new('ScreenGui');
     GuiHolder.ResetOnSpawn = false;
     GuiHolder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
+    GuiHolder.IgnoreGuiInset = true;
     GuiHolder.DisplayOrder = -1;
     ProtectGui(GuiHolder);
     local GuiRoot = CoreGui;
@@ -3527,36 +3530,11 @@ local function EnsureBackground()
     Viewport.Parent = BackgroundFrame;
     pcall(function() Viewport.CameraCFrame = CFrame.new(); end);
 
-    local Item = Instance.new('Part');
-    Item.Name = 'backgrounditem';
-    Item.Anchored = true;
-    Item.CanCollide = false;
-    Item.CanQuery = false;
-    Item.CanTouch = false;
-    Item.CastShadow = false;
-    Item.Massless = true;
-    Item.Size = Vector3.new(4, 4, 0.1);
-    Item.Color = Color3.fromRGB(255, 255, 255);
-    Item.Transparency = 1;
-    Item.Material = Enum.Material.Plastic;
-    Item.Reflectance = 0;
-    Item.Parent = Viewport;
-
-    local Mesh = Instance.new('SpecialMesh');
-    Mesh.MeshType = Enum.MeshType.FileMesh;
-    Mesh.Scale = Vector3.new(1, 1, 1);
-    Mesh.Parent = Item;
-
-    local Thumb = Instance.new('Decal');
-    Thumb.Name = 'thumbnail';
-    Thumb.Face = Enum.NormalId.Front;
-    Thumb.Texture = '';
-    Thumb.Parent = Item;
-
     BackgroundState = {
-        Item = Item;
-        Mesh = Mesh;
-        Thumb = Thumb;
+        Items = {};
+        Selected = nil;
+        NoItem = true;
+        Item = nil;
         Correction = Correction;
         Blur = Blur;
         Gui = GuiHolder;
@@ -3564,13 +3542,11 @@ local function EnsureBackground()
         Viewport = Viewport;
         InsertService = InsertService;
         Marketplace = game:GetService('MarketplaceService');
-        Loaded = nil;
-        Cache = {};
         ThumbCache = {};
         Spin = 0;
         Speed = 10;
         Transparency = 100;
-        Color = Item.Color;
+        Color = Color3.fromRGB(255, 255, 255);
         Reflectance = 0;
         Material = Enum.Material.Plastic;
         TintColor = Color3.fromRGB(255, 255, 255);
@@ -3604,38 +3580,44 @@ local function EnsureBackground()
     end
 
     local function PlaceTarget()
-        local Target = State.Loaded or State.Item;
+        local Target = State.Item;
+        if not Target then return end
         Target.CFrame = CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
     end
 
     local function ApplyMaterial(Target, Material)
         if not Target then return end
         pcall(function() Target.Material = Material end);
-        local Applied = 0;
         pcall(function()
             for _, Child in ipairs(Target:GetDescendants()) do
                 if Child:IsA('BasePart') then
                     Child.Material = Material;
-                    Applied = Applied + 1;
                 end
             end
         end);
-        pcall(function() print(('[xyro-bg] material applied target=%s material=%s parts=%d'):format(tostring(Target.Name), tostring(Material), Applied)) end);
     end
 
     local function ApplyItem()
-        local Target = State.Loaded or State.Item;
         local T = math.clamp(tonumber(State.Transparency) or 100, 0, 100) / 100;
-        Target.Transparency = T;
-        Target.Color = State.Color;
-        pcall(function() Target.Reflectance = State.Reflectance end);
-        ApplyMaterial(Target, State.Material);
-        ApplyMaterial(State.Item, State.Material);
-        local Show = IsShown() and T < 1 and not State.NoItem;
-        Target.Parent = State.Viewport;
-        if State.Loaded then
-            State.Item.Parent = nil;
+        for Name, Entry in pairs(State.Items) do
+            local Part = Entry and Entry.Part;
+            if Part then
+                local Selected = State.Selected == Name;
+                Part.Color = State.Color;
+                pcall(function() Part.Reflectance = State.Reflectance end);
+                ApplyMaterial(Part, State.Material);
+                Part.Transparency = Selected and T or 1;
+                pcall(function()
+                    for _, Child in ipairs(Part:GetChildren()) do
+                        if Child:IsA('Decal') then
+                            Child.Transparency = Selected and T or 1;
+                        end
+                    end
+                end);
+            end
         end
+        local Target = State.Item;
+        local Show = IsShown() and T < 1 and not State.NoItem and Target ~= nil;
         if Show then
             PlaceTarget();
         end
@@ -3833,8 +3815,7 @@ local function EnsureBackground()
         Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, Size.Z * Factor);
     end
 
-    local function FitMesh(Scale, MeshMax)
-        local Mesh = State.Mesh;
+    local function FitMesh(Mesh, Scale, MeshMax)
         local Applied = math.max(tonumber(Scale) or 1, 0.001);
         local Native = tonumber(MeshMax);
         if not Native or Native <= 0 then
@@ -3847,6 +3828,222 @@ local function EnsureBackground()
         pcall(function() print(('[xyro-bg] mesh scale=%.6f target=%.3f native=%.3f'):format(Factor, Target, Native)) end);
     end
 
+    local function BuildItem(Def)
+        local Part = Instance.new('Part');
+        Part.Name = 'backgrounditem';
+        Part.Anchored = true;
+        Part.CanCollide = false;
+        Part.CanQuery = false;
+        Part.CanTouch = false;
+        Part.CastShadow = false;
+        Part.Massless = true;
+        Part.Size = Vector3.new(4, 4, 0.1);
+        Part.Color = Color3.fromRGB(255, 255, 255);
+        Part.Transparency = 1;
+        Part.Material = Enum.Material.Plastic;
+        Part.Reflectance = 0;
+        Part.Parent = Viewport;
+        local Mesh = Instance.new('SpecialMesh');
+        Mesh.MeshType = Enum.MeshType.FileMesh;
+        Mesh.Scale = Vector3.new(1, 1, 1);
+        Mesh.Parent = Part;
+        local Thumb = Instance.new('Decal');
+        Thumb.Name = 'thumbnail';
+        Thumb.Face = Enum.NormalId.Front;
+        Thumb.Texture = '';
+        Thumb.Parent = Part;
+        local ThumbBack = Instance.new('Decal');
+        ThumbBack.Name = 'thumbnail';
+        ThumbBack.Face = Enum.NormalId.Back;
+        ThumbBack.Texture = '';
+        ThumbBack.Parent = Part;
+        return {
+            Def = Def;
+            Part = Part;
+            Mesh = Mesh;
+            Thumb = Thumb;
+            ThumbBack = ThumbBack;
+        };
+    end
+
+    local function FindBasePart(Obj)
+        if typeof(Obj) ~= 'Instance' then return nil end
+        if Obj:IsA('BasePart') then return Obj end
+        local Ok, Found = pcall(function() return Obj:FindFirstChildWhichIsA('BasePart', true) end);
+        if Ok then return Found end
+        return nil;
+    end
+
+    local function TryGetObjectsUnion(AssetId)
+        if type(game.GetObjects) ~= 'function' then
+            pcall(function() print('[xyro-bg] union getobjects missing id=' .. tostring(AssetId)) end);
+            return nil;
+        end
+        local Digits = tostring(AssetId):match('%d+') or '';
+        local Forms = {
+            'https://www.roblox.com//asset/?id=' .. Digits,
+            'https://www.roblox.com/asset/?id=' .. Digits,
+            'http://www.roblox.com/asset/?id=' .. Digits,
+            'rbxassetid://' .. Digits
+        };
+        for _, Uri in ipairs(Forms) do
+            local Ok, Objects = pcall(function() return game:GetObjects(Uri) end);
+            local Count = -1;
+            if Ok and type(Objects) == 'table' then Count = #Objects end
+            pcall(function() print(('[xyro-bg] union getobjects uri=%s ok=%s count=%d err=%s'):format(Uri, tostring(Ok), Count, tostring(Ok and '' or Objects))) end);
+            if Ok and type(Objects) == 'table' then
+                for _, Obj in ipairs(Objects) do
+                    local Part = FindBasePart(Obj);
+                    if Part then return Part end
+                end
+            end
+        end
+        return nil;
+    end
+
+    local function TryCreateMeshPartUnion(AssetId)
+        local AssetService = nil;
+        pcall(function() AssetService = game:GetService('AssetService') end);
+        if not AssetService or type(AssetService.CreateMeshPartAsync) ~= 'function' then
+            pcall(function() print('[xyro-bg] union create-mesh missing id=' .. tostring(AssetId)) end);
+            return nil;
+        end
+        local ContentValue = nil;
+        pcall(function()
+            local Digits = tonumber(tostring(AssetId):match('%d+') or '') or 0;
+            if Content and Content.fromAssetId then
+                ContentValue = Content.fromAssetId(Digits)
+            end
+        end);
+        if not ContentValue then
+            pcall(function()
+                if Content and Content.fromUri then
+                    ContentValue = Content.fromUri(tostring(AssetId))
+                end
+            end);
+        end
+        if not ContentValue then
+            pcall(function() print('[xyro-bg] union create-mesh no content id=' .. tostring(AssetId)) end);
+            return nil;
+        end
+        local Ok, Result = pcall(function() return AssetService:CreateMeshPartAsync(ContentValue) end);
+        pcall(function() print(('[xyro-bg] union create-mesh id=%s ok=%s result=%s'):format(tostring(AssetId), tostring(Ok), tostring(Ok and Result or Result))) end);
+        if not Ok or typeof(Result) ~= 'Instance' then return nil end
+        if Result:IsA('BasePart') then return Result end
+        return FindBasePart(Result);
+    end
+
+    local function TryMeshPartUnion(AssetId)
+        local Probe = nil;
+        local Ok, Err = pcall(function()
+            Probe = Instance.new('MeshPart');
+            Probe.Anchored = true;
+            Probe.Transparency = 1;
+            Probe.Parent = Viewport;
+            Probe.MeshId = tostring(AssetId);
+        end);
+        if not Ok then
+            pcall(function() print(('[xyro-bg] union meshpart id=%s error=%s'):format(tostring(AssetId), tostring(Err))) end);
+            if Probe then pcall(function() Probe:Destroy() end) end
+            return nil;
+        end
+        local Before = Probe.Size;
+        local Step = 0;
+        local Hit = false;
+        while Step < 30 and not Hit do
+            task.wait(0.1);
+            Step = Step + 1;
+            if Probe.Size ~= Before then Hit = true end
+        end
+        pcall(function() print(('[xyro-bg] union meshpart id=%s hit=%s before=%s after=%s'):format(tostring(AssetId), tostring(Hit), tostring(Before), tostring(Probe.Size))) end);
+        if not Hit then
+            pcall(function() Probe:Destroy() end);
+            return nil;
+        end
+        return Probe;
+    end
+
+    local function ResolveUnion(Entry)
+        local Def = Entry.Def;
+        local Scale = tonumber(Def.Scale) or 1;
+        local Kind = AssetKind(Def.Id);
+        pcall(function() print(('[xyro-bg] union resolve id=%s type=%s'):format(tostring(Def.Id), tostring(Kind))) end);
+        local Real = TryGetObjectsUnion(Def.Id);
+        if not Real then
+            Real = LoadAssetPart(Def.Id);
+        end
+        if not Real then
+            Real = TryCreateMeshPartUnion(Def.Id);
+        end
+        if not Real then
+            Real = TryMeshPartUnion(Def.Id);
+        end
+        if not Real then
+            pcall(function() print(('[xyro-bg] union fallback thumbnail id=%s name=%s'):format(tostring(Def.Id), tostring(Def.Name))) end);
+            return
+        end
+        pcall(function() FitTarget(Real, Scale) end);
+        Real.Name = 'backgrounditem';
+        Real.Anchored = true;
+        Real.CanCollide = false;
+        Real.CanQuery = false;
+        Real.CanTouch = false;
+        Real.CastShadow = false;
+        Real.Massless = true;
+        Real.Color = State.Color;
+        Real.Material = State.Material;
+        pcall(function() Real.Reflectance = State.Reflectance end);
+        Real.Transparency = 1;
+        Real.Parent = Viewport;
+        local Old = Entry.Part;
+        Entry.Part = Real;
+        Entry.Mesh = nil;
+        Entry.Thumb = nil;
+        Entry.ThumbBack = nil;
+        pcall(function() if Old then Old:Destroy() end end);
+        pcall(function() print(('[xyro-bg] union resolved id=%s class=%s size=%s'):format(tostring(Def.Id), tostring(Real.ClassName), tostring(Real.Size))) end);
+        if State.Selected == Def.Name then
+            State.Item = Real;
+            ApplyItem();
+        end
+    end
+
+    local function PopulateItem(Entry)
+        local Def = Entry.Def;
+        local Scale = tonumber(Def.Scale) or 1;
+        if not Def.Union then
+            Entry.Mesh.MeshId = Def.Id;
+            FitMesh(Entry.Mesh, Scale, Def.MeshMax);
+            pcall(function() print(('[xyro-bg] item built name=%s id=%s'):format(tostring(Def.Name), tostring(Def.Id))) end);
+            return
+        end
+        local Base = math.max(Entry.Part.Size.X, Entry.Part.Size.Y);
+        if Base > 0 then
+            local Factor = (State.TargetSize * Scale) / Base;
+            Entry.Part.Size = Vector3.new(
+                Entry.Part.Size.X * Factor,
+                Entry.Part.Size.Y * Factor,
+                Entry.Part.Size.Z * Factor
+            );
+        end
+        task.spawn(function()
+            local Url = State.ThumbCache[Def.Id];
+            if not Url then
+                Url = LoadAssetThumbnail(Def.Id);
+                State.ThumbCache[Def.Id] = Url;
+            end
+            if Url then
+                if Entry.Thumb then
+                    Entry.Thumb.Texture = Url;
+                end
+                if Entry.ThumbBack then
+                    Entry.ThumbBack.Texture = Url;
+                end
+            end
+            ResolveUnion(Entry);
+        end);
+    end
+
     local function SetItem(Name)
         local Def = nil;
         for _, Entry in ipairs(BackgroundItems) do
@@ -3855,84 +4052,18 @@ local function EnsureBackground()
                 break;
             end
         end
-        if not Def then
-            if State.Loaded then
-                pcall(function() State.Loaded:Destroy() end);
-                State.Loaded = nil;
-            end
-            State.Thumb.Texture = '';
-            State.Mesh.MeshId = '';
-            State.NoItem = true;
-            State.Viewport.Visible = false;
-            State.Gui.Enabled = IsShown();
-            pcall(function() print('[xyro-bg] set none') end);
-            return
-        end
-        State.NoItem = false;
-        if State.Loaded then
-            pcall(function() State.Loaded:Destroy() end);
-            State.Loaded = nil;
-        end
-        State.Thumb.Texture = '';
-        State.Mesh.MeshId = '';
-        State.Mesh.Parent = State.Item;
-        State.Item.Parent = State.Viewport;
-        local Scale = tonumber(Def.Scale) or 1;
-        local Loaded = nil;
-        local Cached = State.Cache[Def.Name];
-        if Cached then
-            pcall(function() Loaded = Cached:Clone(); end);
-        end
-        if not Loaded then
-            Loaded = LoadAssetPart(Def.Id);
-        end
-        pcall(function() print(('[xyro-bg] set %s id=%s loaded=%s union=%s'):format(tostring(Def.Name), tostring(Def.Id), tostring(Loaded ~= nil), tostring(Def.Union == true))) end);
-        if Loaded then
-            State.Loaded = Loaded;
-            pcall(function() FitTarget(Loaded, Scale) end);
-            State.Item.Parent = nil;
-        elseif Def.Union then
-            local Kind = AssetKind(Def.Id);
-            pcall(function() print(('[xyro-bg] union asset id=%s type=%s'):format(tostring(Def.Id), tostring(Kind))) end);
-            if Kind == nil or Kind == 4 then
-                State.Mesh.MeshId = Def.Id;
-                FitMesh(Scale, Def.MeshMax);
-            else
-                local function ShowThumb()
-                    local Url = State.ThumbCache[Def.Id];
-                    if not Url then
-                        Url = LoadAssetThumbnail(Def.Id);
-                        State.ThumbCache[Def.Id] = Url;
-                    end
-                    if State.Loaded ~= nil then return end
-                    if State.Mesh.MeshId ~= '' or not State.Item.Parent then return end
-                    pcall(function() print(('[xyro-bg] union thumbnail %s -> %s'):format(tostring(Def.Id), tostring(Url))) end);
-                    if Url then
-                        State.Mesh.Parent = nil;
-                        pcall(function()
-                            local Base = math.max(State.Item.Size.X, State.Item.Size.Y);
-                            if Base <= 0 then return end
-                            local Factor = (State.TargetSize * Scale) / Base;
-                            State.Item.Size = Vector3.new(
-                                State.Item.Size.X * Factor,
-                                State.Item.Size.Y * Factor,
-                                State.Item.Size.Z * Factor
-                            );
-                        end);
-                        State.Thumb.Texture = Url;
-                    end
-                end
-                if State.ThumbCache[Def.Id] then
-                    ShowThumb();
-                else
-                    task.spawn(ShowThumb);
-                end
-            end
-        else
-            State.Mesh.MeshId = Def.Id;
-            FitMesh(Scale, Def.MeshMax);
-        end
+        State.Selected = Def and Def.Name or nil;
+        State.NoItem = Def == nil;
+        local Entry = Def and State.Items[Def.Name] or nil;
+        State.Item = Entry and Entry.Part or nil;
+        pcall(function() print(('[xyro-bg] set name=%s selected=%s'):format(tostring(Name), tostring(State.Selected ~= nil))) end);
         ApplyItem();
+    end
+
+    for _, Def in ipairs(BackgroundItems) do
+        local Entry = BuildItem(Def);
+        State.Items[Def.Name] = Entry;
+        PopulateItem(Entry);
     end
 
     State.ApplyTint = ApplyTint;
@@ -3953,8 +4084,6 @@ local function EnsureBackground()
     Library:OnUnload(function()
         pcall(function() if State.Connection then State.Connection:Disconnect() end end);
         pcall(function() if State.Gui then State.Gui:Destroy() end end);
-        pcall(function() if State.Loaded then State.Loaded:Destroy() end end);
-        pcall(function() State.Item:Destroy() end);
         pcall(function() State.Correction:Destroy() end);
         pcall(function() State.Blur:Destroy() end);
     end);
@@ -3965,13 +4094,9 @@ local function EnsureBackground()
         for _, Def in ipairs(BackgroundItems) do
             pcall(function() AssetKind(Def.Id) end);
             pcall(function()
-                local Loaded = LoadAssetPart(Def.Id);
-                if Loaded then
-                    State.Cache[Def.Name] = Loaded;
+                if not State.ThumbCache[Def.Id] then
+                    State.ThumbCache[Def.Id] = LoadAssetThumbnail(Def.Id);
                 end
-            end);
-            pcall(function()
-                State.ThumbCache[Def.Id] = LoadAssetThumbnail(Def.Id);
             end);
         end
     end);
@@ -4236,8 +4361,6 @@ function Library:CreateSettingsPanes(Tab, Config)
             if typeof(Parsed) ~= 'EnumItem' then return end
             State.Material = Parsed;
             State.ApplyItem();
-            State.ApplyMaterial(State.Loaded or State.Item, Parsed);
-            State.ApplyMaterial(State.Item, Parsed);
         end;
     });
     BackgroundPane:AddDivider();
@@ -5100,6 +5223,7 @@ Players.PlayerRemoving:Connect(OnPlayerChange);
 if InputService.TouchEnabled then
     local MobileGui = Instance.new("ScreenGui")
     MobileGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    MobileGui.IgnoreGuiInset = true
     ProtectGui(MobileGui)
     MobileGui.Parent = CoreGui
     MobileGuiRef = MobileGui
@@ -5244,6 +5368,7 @@ function Library:CreatePopout(Config)
     ProtectGui(PopoutGui)
     PopoutGui.ResetOnSpawn = false
     PopoutGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    PopoutGui.IgnoreGuiInset = true
     PopoutGui.DisplayOrder = (Config.DisplayOrder or 0) + 19
     local PopoutRoot = CoreGui
     pcall(function()
