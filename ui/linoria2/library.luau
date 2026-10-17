@@ -3517,7 +3517,6 @@ local function EnsureBackground()
     Viewport.ZIndex = -10;
     Viewport.Parent = BackgroundFrame;
     pcall(function() Viewport.CameraCFrame = CFrame.new(); end);
-    pcall(function() Viewport.CameraFieldOfView = 20; end);
 
     BackgroundState = {
         Items = {};
@@ -3568,7 +3567,7 @@ local function EnsureBackground()
     local function PlaceTarget()
         local Target = State.Item;
         if not Target then return end
-        Target.CFrame = CFrame.new(0, 0, -56) * CFrame.Angles(0, State.Spin, 0);
+        Target.CFrame = CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
     end
 
     local function ApplyMaterial(Target, Material)
@@ -3622,45 +3621,34 @@ local function EnsureBackground()
         pcall(function() print('[xyro-bg] ' .. string.format(Format, unpack(Args))) end);
     end
 
-    local function AwaitStableBounds(Part, IsMesh)
-        local function Read()
-            if IsMesh then
-                local Ok, MeshSize = pcall(function() return Part.MeshSize end);
-                if Ok and typeof(MeshSize) == 'Vector3' and MeshSize.X > 0 and MeshSize.Y > 0 then
-                    return MeshSize;
-                end
-                return nil;
-            end
-            local Size = Part.Size;
-            if Size.X > 0 and Size.Y > 0 then return Size end
-            return nil;
-        end
-        local Last = Read();
-        local Stable = 0;
-        local Step = 0;
-        while Step < 160 and Stable < 15 do
-            task.wait(0.05);
-            Step = Step + 1;
-            local Cur = Read();
-            if Cur then
-                if Last and Cur == Last then
-                    Stable = Stable + 1;
-                else
-                    Stable = 0;
-                end
-                Last = Cur;
-            end
-        end
-        Log('bounds %s ismesh=%s steps=%d value=%s', tostring(Part.Name), tostring(IsMesh), Step, tostring(Last));
-        return Last;
+    local function LoadContent(Part)
+        local Provider = game:GetService('ContentProvider');
+        local Ok, Err = pcall(function()
+            Provider:PreloadAsync({ Part });
+        end);
+        Log('preload %s ok=%s err=%s', tostring(Part.Name), tostring(Ok), tostring(Ok and '' or Err));
     end
 
-    local function ScaleUniform(Part, Bounds, Scale)
+    local function ReadBounds(Part, IsMesh)
+        if IsMesh then
+            local Ok, MeshSize = pcall(function() return Part.MeshSize end);
+            if Ok and typeof(MeshSize) == 'Vector3' and MeshSize.X > 0 and MeshSize.Y > 0 then
+                return MeshSize;
+            end
+            return nil;
+        end
+        local Size = Part.Size;
+        if Size.X > 0 and Size.Y > 0 then return Size end
+        return nil;
+    end
+
+    local function ScaleUniform(Part, Scale)
+        local Bounds = ReadBounds(Part, Part:IsA('MeshPart'));
         if not Bounds then
             Log('scale skip %s no bounds', tostring(Part.Name));
             return;
         end
-        local MaxD = math.max(Bounds.X, Bounds.Y);
+        local MaxD = math.max(Bounds.X, Bounds.Y, Bounds.Z);
         if MaxD <= 0 then
             Log('scale skip %s maxd=%s', tostring(Part.Name), tostring(MaxD));
             return;
@@ -3803,20 +3791,16 @@ local function EnsureBackground()
                 SwapPart(Entry, Real);
                 Part = Entry.Part;
                 Log('union primary %s via=getobjects class=%s', tostring(Def.Name), Part.ClassName);
-                local Bounds = AwaitStableBounds(Part, false);
-                ScaleUniform(Part, Bounds, Scale);
             else
                 SetUnionAsset(Part, Def.Id);
                 Log('union fallback %s via=setscriptable', tostring(Def.Name));
-                local Bounds = AwaitStableBounds(Part, false);
-                ScaleUniform(Part, Bounds, Scale);
             end
         else
             pcall(function() Part.MeshId = tostring(Def.Id) end);
             Log('mesh set id=%s name=%s', tostring(Def.Id), tostring(Def.Name));
-            local Bounds = AwaitStableBounds(Part, true);
-            ScaleUniform(Part, Bounds, Scale);
         end
+        LoadContent(Part);
+        ScaleUniform(Part, Scale);
         Log('item ready name=%s class=%s size=%s', tostring(Def.Name), tostring(Part.ClassName), tostring(Part.Size));
         ApplyItem();
     end
