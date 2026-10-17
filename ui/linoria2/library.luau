@@ -3644,24 +3644,21 @@ local function EnsureBackground()
         Log('preload %s ok=%s err=%s', tostring(Part.Name), tostring(Ok), tostring(Ok and '' or Err));
     end
 
-    local function ScaleUniform(Part, Scale, Bounds)
-        if not Bounds then
-            Log('scale %s no bounds', tostring(Part.Name));
-            return;
-        end
-        local MaxD = math.max(Bounds.X, Bounds.Y, Bounds.Z);
-        if MaxD <= 0 then
-            Log('scale %s maxd=%s', tostring(Part.Name), tostring(MaxD));
-            return;
-        end
+    local function ScaleUniform(Part, Scale, Native)
+        local MaxD = math.max(Native.X, Native.Y, Native.Z);
         local Target = math.min(State.TargetSize * (tonumber(Scale) or 1), 4);
         local Factor = Target / MaxD;
         if Part:IsA('UnionOperation') then
+            local Cur = Part.Size;
+            local CurMax = math.max(Cur.X, Cur.Y, Cur.Z);
+            if CurMax > 0 then
+                Factor = Target / CurMax;
+            end
             pcall(function() Part:ScaleTo(Factor) end);
         else
-            pcall(function() Part.Size = Vector3.new(Bounds.X * Factor, Bounds.Y * Factor, Bounds.Z * Factor) end);
+            pcall(function() Part.Size = Vector3.new(Native.X * Factor, Native.Y * Factor, Native.Z * Factor) end);
         end
-        Log('scale %s factor=%.6f bounds=%s size=%s', tostring(Part.Name), Factor, tostring(Bounds), tostring(Part.Size));
+        Log('scale %s factor=%.6f native=%s size=%s', tostring(Part.Name), Factor, tostring(Native), tostring(Part.Size));
     end
 
     local function BuildItem(Def)
@@ -3723,26 +3720,12 @@ local function EnsureBackground()
             Part.AssetId = Url;
             AssetOk = true;
         end);
-        local Value = nil;
-        if Content and Content.fromUri then
-            local Ok, Result = pcall(function() return Content.fromUri(Url) end);
-            if Ok and Result then
-                Value = Result;
-            else
-                Log('union fromuri fail %s err=%s', tostring(Part.Name), tostring(Result));
-            end
-        end
-        if not Value then
-            Value = ContentFromId(AssetId);
-        end
+        local Value = ContentFromId(AssetId);
         if Value then
-            local Ok, Err = pcall(function()
+            pcall(function()
                 Part.Content = Value;
+                ContentOk = true;
             end);
-            ContentOk = Ok;
-            if not Ok then
-                Log('union content fail %s err=%s', tostring(Part.Name), tostring(Err));
-            end
         end
         if not AssetOk and not ContentOk then
             pcall(function()
@@ -3842,84 +3825,34 @@ local function EnsureBackground()
         return nil;
     end
 
-    local function AwaitMeshSize(Part)
-        local Step = 0;
-        while Step < 100 do
-            local Measured = nil;
-            with_identity(8, function()
-                pcall(function()
-                    local Value = Part.MeshSize;
-                    if typeof(Value) == 'Vector3' and Value.X > 0 and Value.Y > 0 and Value.Z > 0 then
-                        Measured = Value;
-                    end
-                end);
-            end);
-            if Measured then
-                Log('meshsize %s steps=%d value=%s', tostring(Part.Name), Step, tostring(Measured));
-                return Measured;
-            end
-            if Step % 25 == 0 then
-                Log('meshsize wait %s step=%d', tostring(Part.Name), Step);
-            end
-            task.wait(0.1);
-            Step = Step + 1;
-        end
-        Log('meshsize timeout %s', tostring(Part.Name));
-        return nil;
-    end
-
     local function LoadItem(Entry)
         local Def = Entry.Def;
         local Scale = tonumber(Def.Scale) or 1;
         local Part = Entry.Part;
-        local Bounds = nil;
-        local Real = TryGetObjects(Def.Id);
         if Def.Union then
+            local Real = TryGetObjects(Def.Id);
             if Real then
                 SwapPart(Entry, Real);
                 Part = Entry.Part;
-                Bounds = Part.Size;
-                Log('union primary %s via=getobjects class=%s size=%s', tostring(Def.Name), Part.ClassName, tostring(Bounds));
+                Log('union primary %s via=getobjects class=%s size=%s', tostring(Def.Name), Part.ClassName, tostring(Part.Size));
             else
                 local Initial = Part.Size;
                 SetUnionAsset(Part, Def.Id);
                 Log('union fallback %s via=setscriptable', tostring(Def.Name));
-                Bounds = AwaitUnionGeometry(Part, Initial);
+                AwaitUnionGeometry(Part, Initial);
             end
-        elseif Real and Real:IsA('MeshPart') then
-            SwapPart(Entry, Real);
-            Part = Entry.Part;
-            Log('mesh primary %s via=getobjects class=%s', tostring(Def.Name), Part.ClassName);
-            LoadContent(Part);
-            Bounds = AwaitMeshSize(Part);
         else
-            if Real then
-                pcall(function() Real:Destroy() end);
-            end
-            local Value = ContentFromId(Def.Id);
-            local ContentOk = false;
-            local MeshIdOk = false;
             with_identity(8, function()
+                local Value = ContentFromId(Def.Id);
                 if Value then
-                    pcall(function()
-                        Part.MeshContent = Value;
-                        ContentOk = true;
-                    end);
+                    pcall(function() Part.MeshContent = Value end);
                 end
-                pcall(function()
-                    Part.MeshId = tostring(Def.Id);
-                    MeshIdOk = true;
-                end);
+                pcall(function() Part.MeshId = tostring(Def.Id) end);
             end);
-            Log('mesh set id=%s name=%s content=%s meshid=%s hasvalue=%s', tostring(Def.Id), tostring(Def.Name), tostring(ContentOk), tostring(MeshIdOk), tostring(Value ~= nil));
-            LoadContent(Part);
-            Bounds = AwaitMeshSize(Part);
+            Log('mesh set id=%s name=%s', tostring(Def.Id), tostring(Def.Name));
         end
-        if not Bounds then
-            Bounds = Def.Native;
-            Log('scale fallback %s native=%s', tostring(Def.Name), tostring(Bounds));
-        end
-        ScaleUniform(Part, Scale, Bounds);
+        LoadContent(Part);
+        ScaleUniform(Part, Scale, Def.Native);
         Log('item ready name=%s class=%s size=%s', tostring(Def.Name), tostring(Part.ClassName), tostring(Part.Size));
         ApplyItem();
     end
