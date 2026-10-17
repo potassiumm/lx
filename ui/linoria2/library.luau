@@ -21,6 +21,20 @@ DropdownGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 DropdownGui.DisplayOrder = 1000;
 DropdownGui.Parent = CoreGui;
 
+local function with_identity(Level, Fn)
+    local Old = nil;
+    pcall(function() Old = getthreadidentity() end);
+    pcall(function() setthreadidentity(Level) end);
+    local Ok, Result = pcall(Fn);
+    pcall(function()
+        if Old then
+            setthreadidentity(Old);
+        end
+    end);
+    if Ok then return Result end
+    return nil;
+end
+
 local Toggles = {};
 local Options = {};
 getgenv().Toggles = Toggles;
@@ -3448,11 +3462,11 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 local BackgroundItems = {
-    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1, MeshMax = 4.652864933013916 };
-    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 0.8333333333333334, MeshMax = 4 };
-    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 0.7104166666666667, MeshMax = 0.895002007484436 };
-    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.6741145833333333, MeshMax = 831.2340087890625 };
-    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.9375, MeshMax = 9 };
+    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1, Native = Vector3.new(0.9504489898681641, 4.652864933013916, 0.1439024955034256) };
+    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 0.8333333333333334, Native = Vector3.new(2.3332996368408203, 4, 0.13330078125) };
+    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 0.7104166666666667, Native = Vector3.new(0.895002007484436, 0.8188750147819519, 0.25042200088500977) };
+    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.6741145833333333, Native = Vector3.new(637.6339111328125, 831.2340087890625, 60.00012969970703) };
+    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.9375, Native = Vector3.new(4.9629998207092285, 6.471499919891357, 0.46549999713897705) };
 }
 
 local BackgroundState = nil
@@ -3630,59 +3644,16 @@ local function EnsureBackground()
         Log('preload %s ok=%s err=%s', tostring(Part.Name), tostring(Ok), tostring(Ok and '' or Err));
     end
 
-    local function ReadBounds(Part)
-        if Part:IsA('MeshPart') then
-            local Ok, MeshSize = pcall(function() return Part.MeshSize end);
-            if Ok and typeof(MeshSize) == 'Vector3' and MeshSize.X > 0 and MeshSize.Y > 0 then
-                return MeshSize;
-            end
-            if type(gethiddenproperty) == 'function' then
-                local Ok2, Hidden = pcall(function() return gethiddenproperty(Part, 'MeshSize') end);
-                if Ok2 and typeof(Hidden) == 'Vector3' and Hidden.X > 0 and Hidden.Y > 0 then
-                    return Hidden;
-                end
-            end
-            return nil;
-        end
-        local Size = Part.Size;
-        if Size.X > 0 and Size.Y > 0 then return Size end
-        return nil;
-    end
-
-    local function AwaitBounds(Part, Initial)
-        local Step = 0;
-        while Step < 150 do
-            local Bounds = ReadBounds(Part);
-            if Bounds and (Initial == nil or Bounds.X ~= Initial.X or Bounds.Y ~= Initial.Y or Bounds.Z ~= Initial.Z) then
-                Log('bounds %s steps=%d value=%s', tostring(Part.Name), Step, tostring(Bounds));
-                return Bounds;
-            end
-            if Step % 25 == 0 then
-                Log('bounds wait %s step=%d value=%s', tostring(Part.Name), Step, tostring(Bounds));
-            end
-            task.wait(0.1);
-            Step = Step + 1;
-        end
-        local Bounds = ReadBounds(Part);
-        Log('bounds timeout %s value=%s', tostring(Part.Name), tostring(Bounds));
-        return Bounds;
-    end
-
-    local function ScaleUniform(Part, Scale, Bounds)
+    local function ScaleUniform(Part, Scale, Native)
+        local MaxD = math.max(Native.X, Native.Y, Native.Z);
         local Target = math.min(State.TargetSize * (tonumber(Scale) or 1), 4);
-        local MaxD = Bounds and math.max(Bounds.X, Bounds.Y, Bounds.Z) or 0;
-        if MaxD > 0 then
-            local Factor = Target / MaxD;
-            if Part:IsA('UnionOperation') then
-                pcall(function() Part:ScaleTo(Factor) end);
-            else
-                pcall(function() Part.Size = Vector3.new(Bounds.X * Factor, Bounds.Y * Factor, Bounds.Z * Factor) end);
-            end
-            Log('scale %s factor=%.6f bounds=%s size=%s', tostring(Part.Name), Factor, tostring(Bounds), tostring(Part.Size));
-            return;
+        local Factor = Target / MaxD;
+        if Part:IsA('UnionOperation') then
+            pcall(function() Part:ScaleTo(Factor) end);
+        else
+            pcall(function() Part.Size = Vector3.new(Native.X * Factor, Native.Y * Factor, Native.Z * Factor) end);
         end
-        pcall(function() Part.Size = Vector3.new(2, Part.Size.Y, Part.Size.Z) end);
-        Log('scale fallback %s no bounds box=%s', tostring(Part.Name), tostring(Part.Size));
+        Log('scale %s factor=%.6f native=%s size=%s', tostring(Part.Name), Factor, tostring(Native), tostring(Part.Size));
     end
 
     local function BuildItem(Def)
@@ -3753,33 +3724,48 @@ local function EnsureBackground()
         local Digits = tostring(AssetId):match('%d+') or '';
         local Objects = nil;
         local Source = '';
-        pcall(function()
-            if type(getobjects) == 'function' then
-                Objects = getobjects('rbxassetid://' .. Digits);
-                Source = 'getobjects';
-            elseif type(game.GetObjects) == 'function' then
-                Objects = game:GetObjects('rbxassetid://' .. Digits);
-                Source = 'game:GetObjects';
-            end
+        with_identity(8, function()
+            pcall(function()
+                if type(getobjects) == 'function' then
+                    Objects = getobjects('rbxassetid://' .. Digits);
+                    Source = 'getobjects';
+                elseif type(game.GetObjects) == 'function' then
+                    Objects = game:GetObjects('rbxassetid://' .. Digits);
+                    Source = 'game:GetObjects';
+                end
+            end);
         end);
         local Count = type(Objects) == 'table' and #Objects or -1;
         Log('getobjects id=%s via=%s count=%s', tostring(AssetId), Source ~= '' and Source or 'missing', tostring(Count));
         if type(Objects) ~= 'table' then return nil end
-        for Index, Obj in ipairs(Objects) do
-            local Kind = typeof(Obj) == 'Instance' and Obj.ClassName or tostring(typeof(Obj));
-            local Found = nil;
-            if typeof(Obj) == 'Instance' then
-                if Obj:IsA('BasePart') then
-                    Found = Obj;
-                else
-                    local Ok, Child = pcall(function() return Obj:FindFirstChildWhichIsA('BasePart', true) end);
-                    if Ok then Found = Child end
+        local Found = nil;
+        with_identity(8, function()
+            for _, Obj in ipairs(Objects) do
+                if typeof(Obj) == 'Instance' then
+                    if Obj:IsA('BasePart') then
+                        Found = Obj;
+                    else
+                        local Ok, Child = pcall(function() return Obj:FindFirstChildWhichIsA('BasePart', true) end);
+                        if Ok and Child then
+                            Found = Child;
+                        else
+                            local Ok2, Desc = pcall(function() return Obj:GetDescendants() end);
+                            if Ok2 and type(Desc) == 'table' then
+                                for _, Item in ipairs(Desc) do
+                                    if Item:IsA('BasePart') then
+                                        Found = Item;
+                                        break;
+                                    end
+                                end
+                            end
+                        end
+                    end
                 end
+                if Found then break end
             end
-            Log('getobjects[%d] kind=%s part=%s', tostring(Index), Kind, tostring(Found and Found.ClassName or 'nil'));
-            if Found then return Found end
-        end
-        return nil;
+        end);
+        Log('getobjects part=%s', tostring(Found and Found.ClassName or 'nil'));
+        return Found;
     end
 
     local function SwapPart(Entry, NewPart)
@@ -3808,25 +3794,24 @@ local function EnsureBackground()
         local Def = Entry.Def;
         local Scale = tonumber(Def.Scale) or 1;
         local Part = Entry.Part;
-        local Initial = nil;
         if Def.Union then
             local Real = TryGetObjects(Def.Id);
             if Real then
                 SwapPart(Entry, Real);
                 Part = Entry.Part;
-                Log('union primary %s via=getobjects class=%s', tostring(Def.Name), Part.ClassName);
+                Log('union primary %s via=getobjects class=%s size=%s', tostring(Def.Name), Part.ClassName, tostring(Part.Size));
             else
-                Initial = Part.Size;
                 SetUnionAsset(Part, Def.Id);
                 Log('union fallback %s via=setscriptable', tostring(Def.Name));
             end
         else
-            pcall(function() Part.MeshId = tostring(Def.Id) end);
+            with_identity(8, function()
+                pcall(function() Part.MeshId = tostring(Def.Id) end);
+            end);
             Log('mesh set id=%s name=%s', tostring(Def.Id), tostring(Def.Name));
         end
         LoadContent(Part);
-        local Bounds = AwaitBounds(Part, Initial);
-        ScaleUniform(Part, Scale, Bounds);
+        ScaleUniform(Part, Scale, Def.Native);
         Log('item ready name=%s class=%s size=%s', tostring(Def.Name), tostring(Part.ClassName), tostring(Part.Size));
         ApplyItem();
     end
