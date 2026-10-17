@@ -3453,7 +3453,6 @@ local BackgroundItems = {
     { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 0.7104166666666667, MeshMax = 0.895002007484436 };
     { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.6741145833333333, MeshMax = 831.2340087890625 };
     { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.9375, MeshMax = 9 };
-    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 0.5, MeshMax = 4.8 };
 }
 
 local BackgroundState = nil
@@ -3505,7 +3504,9 @@ local function EnsureBackground()
     BackgroundFrame.Parent = GuiHolder;
 
     local Viewport = Instance.new('ViewportFrame');
-    Viewport.Size = UDim2.new(1, 0, 1, 0);
+    Viewport.AnchorPoint = Vector2.new(0.5, 0.5);
+    Viewport.Position = UDim2.new(0.5, 0, 0.5, 0);
+    Viewport.Size = UDim2.new(0.25, 0, 0.5, 0);
     Viewport.BackgroundColor3 = Color3.new(0, 0, 0);
     Viewport.BackgroundTransparency = 1;
     Viewport.BorderSizePixel = 0;
@@ -3653,11 +3654,13 @@ local function EnsureBackground()
             Log('scale skip %s maxd=%s', tostring(Part.Name), tostring(MaxD));
             return;
         end
-        local Factor = (State.TargetSize * (tonumber(Scale) or 1)) / MaxD;
+        local Target = math.min(State.TargetSize * (tonumber(Scale) or 1), 4);
+        local Factor = Target / MaxD;
         if Part:IsA('UnionOperation') then
             pcall(function() Part:ScaleTo(Factor) end);
+            pcall(function() Part.Size = Vector3.new(Part.Size.X * 0.5, Part.Size.Y, Part.Size.Z) end);
         else
-            pcall(function() Part.Size = Vector3.new(Bounds.X * Factor, Bounds.Y * Factor, Bounds.Z * Factor) end);
+            pcall(function() Part.Size = Vector3.new(Bounds.X * Factor * 0.5, Bounds.Y * Factor, Bounds.Z * Factor) end);
         end
         Log('scale %s factor=%.6f bounds=%s size=%s', tostring(Part.Name), Factor, tostring(Bounds), tostring(Part.Size));
     end
