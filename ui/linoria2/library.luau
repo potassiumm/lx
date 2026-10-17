@@ -13,9 +13,9 @@ local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 ScreenGui.Parent = CoreGui;
+local MobileGuiRef = nil;
 local DropdownGui = Instance.new('ScreenGui');
 ProtectGui(DropdownGui);
-DropdownGui.Name = 'xyro_dropdowns';
 DropdownGui.ResetOnSpawn = false;
 DropdownGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 DropdownGui.DisplayOrder = 1000;
@@ -56,6 +56,7 @@ local Library = {
     WireframeDrag = true;
     UseBlur = false;
     BlurSize = 15;
+    BackgroundBlurSize = 15;
     KeybindMode = 'All';
     NotifyConfig = {
         Alignment = 'Center';
@@ -119,7 +120,7 @@ function Library:SetFontSize(Size)
             end
         end
     end
-    local mobileUI = CoreGui:FindFirstChild("LinoriaMobileUI")
+    local mobileUI = MobileGuiRef
     if mobileUI then
         for _, descendant in pairs(mobileUI:GetDescendants()) do
             if descendant:IsA("TextLabel") or descendant:IsA("TextBox") or descendant:IsA("TextButton") then
@@ -3479,17 +3480,15 @@ local function EnsureBackground()
         Correction.Parent = Lighting;
     end
 
-    local Blur = Lighting:FindFirstChild('backgroundblur');
-    if not Blur then
+    local Blur = Lighting:FindFirstChild('menublur');
+    if not Blur or not Blur:IsA('BlurEffect') then
         Blur = Instance.new('BlurEffect');
-        Blur.Name = 'backgroundblur';
+        Blur.Name = 'menublur';
         Blur.Size = 0;
-        Blur.Enabled = false;
         Blur.Parent = Lighting;
     end
 
     local GuiHolder = Instance.new('ScreenGui');
-    GuiHolder.Name = 'xyrobackground';
     GuiHolder.ResetOnSpawn = false;
     GuiHolder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
     GuiHolder.DisplayOrder = -1;
@@ -3502,8 +3501,19 @@ local function EnsureBackground()
     end);
     GuiHolder.Parent = GuiRoot;
 
+    local BackgroundFrame = Instance.new('Frame');
+    BackgroundFrame.Name = 'ViewportFrame';
+    BackgroundFrame.Active = false;
+    BackgroundFrame.BackgroundColor3 = Color3.new(0, 0, 0);
+    BackgroundFrame.BackgroundTransparency = 0.7;
+    BackgroundFrame.BorderSizePixel = 0;
+    BackgroundFrame.Position = UDim2.new(0, 0, 0, 0);
+    BackgroundFrame.Selectable = false;
+    BackgroundFrame.Size = UDim2.new(1, 0, 1, 0);
+    BackgroundFrame.ZIndex = 1;
+    BackgroundFrame.Parent = GuiHolder;
+
     local Viewport = Instance.new('ViewportFrame');
-    Viewport.Name = 'viewport';
     Viewport.Size = UDim2.new(1, 0, 1, 0);
     Viewport.BackgroundColor3 = Color3.new(0, 0, 0);
     Viewport.BackgroundTransparency = 1;
@@ -3513,18 +3523,9 @@ local function EnsureBackground()
     Viewport.LightColor = Color3.fromRGB(140, 140, 140);
     Viewport.LightDirection = Vector3.new(-1, -1, -1);
     Viewport.Visible = false;
-    Viewport.Parent = GuiHolder;
-
-    local World = Instance.new('WorldModel');
-    World.Name = 'world';
-    World.Parent = Viewport;
-
-    local ViewCamera = Instance.new('Camera');
-    ViewCamera.Name = 'camera';
-    ViewCamera.FieldOfView = 70;
-    ViewCamera.CFrame = CFrame.new();
-    ViewCamera.Parent = World;
-    Viewport.CurrentCamera = ViewCamera;
+    Viewport.ZIndex = -10;
+    Viewport.Parent = BackgroundFrame;
+    pcall(function() Viewport.CameraCFrame = CFrame.new(); end);
 
     local Item = Instance.new('Part');
     Item.Name = 'backgrounditem';
@@ -3539,7 +3540,7 @@ local function EnsureBackground()
     Item.Transparency = 1;
     Item.Material = Enum.Material.Plastic;
     Item.Reflectance = 0;
-    Item.Parent = World;
+    Item.Parent = Viewport;
 
     local Mesh = Instance.new('SpecialMesh');
     Mesh.MeshType = Enum.MeshType.FileMesh;
@@ -3559,12 +3560,13 @@ local function EnsureBackground()
         Correction = Correction;
         Blur = Blur;
         Gui = GuiHolder;
+        Frame = BackgroundFrame;
         Viewport = Viewport;
-        World = World;
-        ViewCamera = ViewCamera;
         InsertService = InsertService;
         Marketplace = game:GetService('MarketplaceService');
         Loaded = nil;
+        Cache = {};
+        ThumbCache = {};
         Spin = 0;
         Speed = 10;
         Transparency = 100;
@@ -3573,7 +3575,7 @@ local function EnsureBackground()
         Material = Enum.Material.Plastic;
         TintColor = Color3.fromRGB(255, 255, 255);
         TintAmount = 0;
-        BlurSize = 0;
+        BlurSize = 15;
         TargetSize = 5;
         ReferenceSize = 9.6;
         Connection = nil;
@@ -3630,7 +3632,7 @@ local function EnsureBackground()
         ApplyMaterial(Target, State.Material);
         ApplyMaterial(State.Item, State.Material);
         local Show = IsShown() and T < 1 and not State.NoItem;
-        Target.Parent = State.World;
+        Target.Parent = State.Viewport;
         if State.Loaded then
             State.Item.Parent = nil;
         end
@@ -3638,7 +3640,7 @@ local function EnsureBackground()
             PlaceTarget();
         end
         State.Viewport.Visible = Show;
-        State.Gui.Enabled = Show;
+        State.Gui.Enabled = IsShown();
     end
 
     local function Refresh()
@@ -3862,7 +3864,7 @@ local function EnsureBackground()
             State.Mesh.MeshId = '';
             State.NoItem = true;
             State.Viewport.Visible = false;
-            State.Gui.Enabled = false;
+            State.Gui.Enabled = IsShown();
             pcall(function() print('[xyro-bg] set none') end);
             return
         end
@@ -3874,9 +3876,16 @@ local function EnsureBackground()
         State.Thumb.Texture = '';
         State.Mesh.MeshId = '';
         State.Mesh.Parent = State.Item;
-        State.Item.Parent = State.World;
+        State.Item.Parent = State.Viewport;
         local Scale = tonumber(Def.Scale) or 1;
-        local Loaded = LoadAssetPart(Def.Id);
+        local Loaded = nil;
+        local Cached = State.Cache[Def.Name];
+        if Cached then
+            pcall(function() Loaded = Cached:Clone(); end);
+        end
+        if not Loaded then
+            Loaded = LoadAssetPart(Def.Id);
+        end
         pcall(function() print(('[xyro-bg] set %s id=%s loaded=%s union=%s'):format(tostring(Def.Name), tostring(Def.Id), tostring(Loaded ~= nil), tostring(Def.Union == true))) end);
         if Loaded then
             State.Loaded = Loaded;
@@ -3889,8 +3898,12 @@ local function EnsureBackground()
                 State.Mesh.MeshId = Def.Id;
                 FitMesh(Scale, Def.MeshMax);
             else
-                task.spawn(function()
-                    local Url = LoadAssetThumbnail(Def.Id);
+                local function ShowThumb()
+                    local Url = State.ThumbCache[Def.Id];
+                    if not Url then
+                        Url = LoadAssetThumbnail(Def.Id);
+                        State.ThumbCache[Def.Id] = Url;
+                    end
                     if State.Loaded ~= nil then return end
                     if State.Mesh.MeshId ~= '' or not State.Item.Parent then return end
                     pcall(function() print(('[xyro-bg] union thumbnail %s -> %s'):format(tostring(Def.Id), tostring(Url))) end);
@@ -3908,7 +3921,12 @@ local function EnsureBackground()
                         end);
                         State.Thumb.Texture = Url;
                     end
-                end);
+                end
+                if State.ThumbCache[Def.Id] then
+                    ShowThumb();
+                else
+                    task.spawn(ShowThumb);
+                end
             end
         else
             State.Mesh.MeshId = Def.Id;
@@ -3942,6 +3960,21 @@ local function EnsureBackground()
     end);
 
     Refresh();
+
+    task.spawn(function()
+        for _, Def in ipairs(BackgroundItems) do
+            pcall(function() AssetKind(Def.Id) end);
+            pcall(function()
+                local Loaded = LoadAssetPart(Def.Id);
+                if Loaded then
+                    State.Cache[Def.Name] = Loaded;
+                end
+            end);
+            pcall(function()
+                State.ThumbCache[Def.Id] = LoadAssetThumbnail(Def.Id);
+            end);
+        end
+    end);
 
     return BackgroundState;
 end
@@ -4209,33 +4242,32 @@ function Library:CreateSettingsPanes(Tab, Config)
     });
     BackgroundPane:AddDivider();
     BackgroundPane:AddLabel('background color'):AddColorPicker(Id('background_color'), {
-        Default = Color3.fromRGB(255, 255, 255);
+        Default = Color3.new(0, 0, 0);
         Title = 'background color';
         Callback = function(Color)
-            State.TintColor = Color;
-            State.ApplyTint();
+            State.Frame.BackgroundColor3 = Color;
         end;
     });
     BackgroundPane:AddSlider(Id('background_transparency'), {
         Text = 'background transparency';
         Min = 0;
         Max = 100;
-        Default = 100;
+        Default = 70;
         Rounding = 0;
         Suffix = '%';
         Callback = function(Value)
-            State.TintAmount = 100 - Value;
-            State.ApplyTint();
+            State.Frame.BackgroundTransparency = Value / 100;
         end;
     });
     BackgroundPane:AddSlider(Id('background_blur'), {
         Text = 'blur';
         Min = 0;
         Max = 100;
-        Default = 0;
+        Default = 15;
         Rounding = 0;
         Callback = function(Value)
             State.BlurSize = Value;
+            Library.BackgroundBlurSize = Value;
             State.ApplyBlur();
         end;
     });
@@ -4273,7 +4305,7 @@ function Library:CreateSettingsPanes(Tab, Config)
     State.Transparency = 0;
     State.Reflectance = 0;
     State.Speed = 10;
-    State.SetItem('sword');
+    State.SetItem('none');
     State.Refresh();
 
     return {
@@ -4958,8 +4990,9 @@ function Library:CreateWindow(...)
                 MenuBlur.Size = 0
                 MenuBlur.Parent = Lighting
             end
-            MenuBlur.Size = Library.Toggled and 20 or 0
-            MenuBlur.Enabled = Library.Toggled
+            local Size = math.clamp(tonumber(Library.BackgroundBlurSize) or 0, 0, 100)
+            MenuBlur.Size = Library.Toggled and Size or 0
+            MenuBlur.Enabled = Library.Toggled and Size > 0
         end);
         if not Library.Toggled then
             Library:CloseAllOpenMenus();
@@ -5066,10 +5099,10 @@ Players.PlayerAdded:Connect(OnPlayerChange);
 Players.PlayerRemoving:Connect(OnPlayerChange);
 if InputService.TouchEnabled then
     local MobileGui = Instance.new("ScreenGui")
-    MobileGui.Name = "LinoriaMobileUI"
     MobileGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
     ProtectGui(MobileGui)
     MobileGui.Parent = CoreGui
+    MobileGuiRef = MobileGui
     local BTN_W, BTN_H = 88, 30
     local BTN_GAP = 40
     local function CreateMobileButton(name, text, startPos)
@@ -5209,7 +5242,6 @@ function Library:CreatePopout(Config)
 
     local PopoutGui = Instance.new('ScreenGui')
     ProtectGui(PopoutGui)
-    PopoutGui.Name = 'popout'
     PopoutGui.ResetOnSpawn = false
     PopoutGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
     PopoutGui.DisplayOrder = (Config.DisplayOrder or 0) + 19
