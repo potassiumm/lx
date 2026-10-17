@@ -20,6 +20,16 @@ DropdownGui.ResetOnSpawn = false;
 DropdownGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 DropdownGui.DisplayOrder = 1000;
 DropdownGui.Parent = CoreGui;
+local function with_identity(level, fn)
+    if type(setthreadidentity) ~= 'function' then return fn end
+    return function(...)
+        local previous = type(getthreadidentity) == 'function' and getthreadidentity() or nil;
+        pcall(setthreadidentity, level);
+        local results = { fn(...) };
+        if previous ~= nil then pcall(setthreadidentity, previous) end;
+        return unpack(results);
+    end
+end
 local Toggles = {};
 local Options = {};
 getgenv().Toggles = Toggles;
@@ -3030,7 +3040,7 @@ do
         local anchor = cfg.AnchorPoint or Vector2.new(0.5, 0.5)
         area.AnchorPoint = anchor
         if scaleX ~= nil and scaleY ~= nil then
-            area.Position = UDim2.new(0, cfg.PositionX or 0, 0, cfg.PositionY or 0)
+            area.Position = UDim2.new(math.clamp(scaleX, 0, 1), cfg.PositionX or 0, math.clamp(scaleY, 0, 1), cfg.PositionY or 0)
         else
             area.Position = UDim2.new(0, cfg.PositionX or 0, 0, cfg.PositionY or 0)
         end
@@ -3446,12 +3456,12 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 local BackgroundItems = {
-    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1, ReferenceSize = 9.6 };
-    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 1, ReferenceSize = 9.6 };
-    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 1, ReferenceSize = 9.6 };
-    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 1, ReferenceSize = 9.6 };
-    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 1, ReferenceSize = 9.6 };
-    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 1, ReferenceSize = 4.8 };
+    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1 };
+    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 1 };
+    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 1 };
+    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 1 };
+    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 1 };
+    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 1 };
 }
 
 local BackgroundState = nil
@@ -3565,6 +3575,7 @@ local function EnsureBackground()
         TintAmount = 0;
         BlurSize = 0;
         TargetSize = 5;
+        ReferenceSize = 9.6;
         Connection = nil;
     };
 
@@ -3647,6 +3658,7 @@ local function EnsureBackground()
         end;
         return Container;
     end
+    LoadAssetContainer = with_identity(8, LoadAssetContainer);
 
     local function LoadAssetPart(AssetId)
         local Container = LoadAssetContainer(AssetId);
@@ -3684,11 +3696,13 @@ local function EnsureBackground()
         return Url;
     end
 
-    local function FitTarget(Target, Scale, ReferenceSize)
+    local function FitTarget(Target, Scale)
         local Size = Target.Size;
         local Max = math.max(Size.X, Size.Y);
         if Max <= 0 then return end
-        local Factor = (State.TargetSize * (tonumber(Scale) or 1)) / (tonumber(ReferenceSize) or Max);
+        local Reference = tonumber(State.ReferenceSize) or Max;
+        local Factor = (State.TargetSize * (tonumber(Scale) or 1)) / Reference;
+        pcall(function() print(('[xyro-bg] fit %s size=%s factor=%.3f'):format(tostring(Target.Name), tostring(Size), Factor)) end);
         if Target:IsA('UnionOperation') then
             pcall(function() Target:ScaleTo(Factor) end);
             return
@@ -3696,18 +3710,37 @@ local function EnsureBackground()
         Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, Size.Z * Factor);
     end
 
-    local function FitMesh(Scale, ReferenceSize)
+    local function FitMesh(Scale)
         local Item, Mesh = State.Item, State.Mesh;
         local Applied = math.max(tonumber(Scale) or 1, 0.001);
+        local Target = State.TargetSize * Applied;
         Mesh.Scale = Vector3.new(Applied, Applied, Applied);
         task.spawn(function()
+            for _ = 1, 20 do
+                pcall(function() RunService.RenderStepped:Wait() end);
+            end
+            local Original = Item.Size;
+            local Probe = nil;
+            pcall(function() Item.Size = Vector3.new(0.02, 0.02, 0.02) end);
+            pcall(function() RunService.RenderStepped:Wait() end);
             pcall(function() RunService.RenderStepped:Wait() end);
             local Ok, Extents = pcall(function() return Item:GetExtentsSize() end);
-            if not Ok or typeof(Extents) ~= 'Vector3' then return end
-            local Max = math.max(Extents.X, Extents.Y);
-            if Max <= 0 then return end
-            local Factor = (State.TargetSize * Applied) / (tonumber(ReferenceSize) or Max);
-            Mesh.Scale = Vector3.new(Applied * Factor, Applied * Factor, Applied * Factor);
+            pcall(function() Item.Size = Original end);
+            if Ok and typeof(Extents) == 'Vector3' then
+                local Max = math.max(Extents.X, Extents.Y);
+                if Max > 0.5 then Probe = Max end
+            end
+            if Probe and Probe > 0 then
+                local Factor = Target / Probe;
+                Mesh.Scale = Vector3.new(Applied * Factor, Applied * Factor, Applied * Factor);
+                pcall(function() print(('[xyro-bg] mesh probe=%.3f factor=%.3f'):format(Probe, Factor)) end);
+                return
+            end
+            local Base = math.max(Original.X, Original.Y);
+            local Reference = tonumber(State.ReferenceSize) or Base;
+            local Factor = Target / Reference;
+            Mesh.Scale = Vector3.new(Factor, Factor, Factor);
+            pcall(function() print(('[xyro-bg] mesh fallback reference=%.3f factor=%.3f'):format(Reference, Factor)) end);
         end);
     end
 
@@ -3729,21 +3762,24 @@ local function EnsureBackground()
         State.Mesh.Parent = State.Item;
         State.Item.Parent = State.World;
         local Scale = tonumber(Def.Scale) or 1;
-        local ReferenceSize = tonumber(Def.ReferenceSize);
         local Loaded = LoadAssetPart(Def.Id);
+        pcall(function() print(('[xyro-bg] set %s id=%s loaded=%s union=%s'):format(tostring(Def.Name), tostring(Def.Id), tostring(Loaded ~= nil), tostring(Def.Union == true))) end);
         if Loaded then
             State.Loaded = Loaded;
-            pcall(function() FitTarget(Loaded, Scale, ReferenceSize) end);
+            pcall(function() FitTarget(Loaded, Scale) end);
             State.Item.Parent = nil;
         elseif Def.Union then
             task.spawn(function()
                 local Url = LoadAssetThumbnail(Def.Id);
                 if State.Loaded ~= nil then return end
                 if State.Mesh.MeshId ~= '' or not State.Item.Parent then return end
+                pcall(function() print(('[xyro-bg] union thumbnail %s -> %s'):format(tostring(Def.Id), tostring(Url))) end);
                 if Url then
                     State.Mesh.Parent = nil;
                     pcall(function()
-                        local Factor = (State.TargetSize * Scale) / (ReferenceSize or State.Item.Size.X);
+                        local Base = math.max(State.Item.Size.X, State.Item.Size.Y);
+                        if Base <= 0 then return end
+                        local Factor = State.TargetSize / Base;
                         State.Item.Size = Vector3.new(
                             State.Item.Size.X * Factor,
                             State.Item.Size.Y * Factor,
@@ -3755,7 +3791,7 @@ local function EnsureBackground()
             end);
         else
             State.Mesh.MeshId = Def.Id;
-            FitMesh(Scale, ReferenceSize);
+            FitMesh(Scale);
         end
         ApplyItem();
     end
@@ -4039,10 +4075,19 @@ function Library:CreateSettingsPanes(Tab, Config)
                 local Ok, Found = pcall(function() return Enum.Material[Value] end);
                 if Ok then Parsed = Found end;
             end
-            if typeof(Parsed) == 'EnumItem' then
-                State.Material = Parsed;
-                State.ApplyItem();
-            end
+            pcall(function() print(('[xyro-bg] material value=%s parsed=%s'):format(tostring(Value), tostring(Parsed))) end);
+            if typeof(Parsed) ~= 'EnumItem' then return end
+            State.Material = Parsed;
+            State.ApplyItem();
+            task.spawn(function()
+                pcall(function()
+                    local Target = State.Loaded or State.Item;
+                    Target.Material = Parsed;
+                    local Shown = Target.Transparency;
+                    Target.Transparency = math.min(Shown + 0.001, 1);
+                    task.defer(function() pcall(function() Target.Transparency = Shown end) end);
+                end);
+            end);
         end;
     });
     BackgroundPane:AddDivider();
@@ -4606,6 +4651,7 @@ function Library:CreateWindow(...)
                 local Button = Library:Create('Frame', {
                     BackgroundColor3 = Library.MainColor;
                     BorderColor3 = Color3.new(0, 0, 0);
+                    BorderMode = Enum.BorderMode.Inset;
                     BorderSizePixel = 1;
                     Size = UDim2.new(0.5, 0, 1, 0);
                     ZIndex = 6;
@@ -4616,11 +4662,9 @@ function Library:CreateWindow(...)
                 });
                 local TabOverlay = Library:Create('Frame', {
                     BackgroundColor3 = Library.MainColor;
-                    BorderSizePixel = 1;
-                    BorderColor3 = Color3.new(0, 0, 0);
-                    BorderMode = Enum.BorderMode.Inset;
-                    Position = UDim2.new(0, -1, 0, -1);
-                    Size = UDim2.new(1, 2, 1, 1);
+                    BorderSizePixel = 0;
+                    Position = UDim2.new(0, 1, 0, 1);
+                    Size = UDim2.new(1, -2, 1, -2);
                     ZIndex = 7;
                     Parent = Button;
                 });
