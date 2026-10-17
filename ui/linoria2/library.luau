@@ -3606,15 +3606,27 @@ local function EnsureBackground()
         Target.CFrame = CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
     end
 
+    local function ApplyMaterial(Target, Material)
+        if not Target then return end
+        pcall(function() Target.Material = Material end);
+        pcall(function()
+            for _, Child in ipairs(Target:GetDescendants()) do
+                if Child:IsA('BasePart') then
+                    Child.Material = Material;
+                end
+            end
+        end);
+    end
+
     local function ApplyItem()
         local Target = State.Loaded or State.Item;
         local T = math.clamp(tonumber(State.Transparency) or 100, 0, 100) / 100;
         Target.Transparency = T;
         Target.Color = State.Color;
         pcall(function() Target.Reflectance = State.Reflectance end);
-        pcall(function() Target.Material = State.Material end);
-        pcall(function() State.Item.Material = State.Material end);
-        local Show = IsShown() and T < 1;
+        ApplyMaterial(Target, State.Material);
+        ApplyMaterial(State.Item, State.Material);
+        local Show = IsShown() and T < 1 and not State.NoItem;
         Target.Parent = State.World;
         if State.Loaded then
             State.Item.Parent = nil;
@@ -3636,9 +3648,13 @@ local function EnsureBackground()
         local Digits = tostring(AssetId):match('%d+');
         if not Digits then return nil end
         local Container = nil;
+        local Errors = {};
         if type(game.GetObjects) == 'function' then
             for _, Prefix in ipairs({ 'rbxassetid://', 'http://www.roblox.com/asset/?id=' }) do
                 local Ok, Objects = pcall(function() return game:GetObjects(Prefix .. Digits) end);
+                if not Ok then
+                    table.insert(Errors, 'getobjects: ' .. tostring(Objects));
+                end;
                 if Ok and type(Objects) == 'table' then
                     for _, Obj in ipairs(Objects) do
                         if typeof(Obj) == 'Instance' then
@@ -3654,8 +3670,17 @@ local function EnsureBackground()
             local Ok, Result = pcall(function() return State.InsertService:LoadAsset(tonumber(Digits)) end);
             if Ok and typeof(Result) == 'Instance' then
                 Container = Result;
+            else
+                table.insert(Errors, 'loadasset: ' .. tostring(Ok and 'no instance' or Result));
             end;
         end;
+        pcall(function()
+            if Container then
+                print(('[xyro-bg] container loaded id=%s class=%s'):format(Digits, Container.ClassName));
+            else
+                print(('[xyro-bg] container failed id=%s %s'):format(Digits, table.concat(Errors, ' | ')));
+            end
+        end);
         return Container;
     end
     LoadAssetContainer = with_identity(8, LoadAssetContainer);
@@ -3733,7 +3758,20 @@ local function EnsureBackground()
                 break;
             end
         end
-        if not Def then return end
+        if not Def then
+            if State.Loaded then
+                pcall(function() State.Loaded:Destroy() end);
+                State.Loaded = nil;
+            end
+            State.Thumb.Texture = '';
+            State.Mesh.MeshId = '';
+            State.NoItem = true;
+            State.Viewport.Visible = false;
+            State.Gui.Enabled = false;
+            pcall(function() print('[xyro-bg] set none') end);
+            return
+        end
+        State.NoItem = false;
         if State.Loaded then
             pcall(function() State.Loaded:Destroy() end);
             State.Loaded = nil;
@@ -3780,6 +3818,7 @@ local function EnsureBackground()
     State.ApplyTint = ApplyTint;
     State.ApplyBlur = ApplyBlur;
     State.ApplyItem = ApplyItem;
+    State.ApplyMaterial = ApplyMaterial;
     State.SetItem = SetItem;
     State.Refresh = Refresh;
 
@@ -3844,6 +3883,8 @@ function Library:CreateSettingsPanes(Tab, Config)
 
     local ItemLabels = {};
     local ItemLookup = {};
+    table.insert(ItemLabels, 'none');
+    ItemLookup['none'] = 'none';
     for _, Entry in ipairs(BackgroundItems) do
         table.insert(ItemLabels, Entry.Name);
         ItemLookup[Entry.Name] = Entry.Name;
@@ -4007,7 +4048,7 @@ function Library:CreateSettingsPanes(Tab, Config)
     BackgroundPane:AddDropdown(Id('background_item'), {
         Text = 'item';
         Values = ItemLabels;
-        Default = 'sword';
+        Default = 'none';
         Callback = function(Value)
             State.SetItem(MapValue(ItemLookup, Value));
         end;
@@ -4060,15 +4101,8 @@ function Library:CreateSettingsPanes(Tab, Config)
             if typeof(Parsed) ~= 'EnumItem' then return end
             State.Material = Parsed;
             State.ApplyItem();
-            task.spawn(function()
-                pcall(function()
-                    local Target = State.Loaded or State.Item;
-                    Target.Material = Parsed;
-                    local Shown = Target.Transparency;
-                    Target.Transparency = math.min(Shown + 0.001, 1);
-                    task.defer(function() pcall(function() Target.Transparency = Shown end) end);
-                end);
-            end);
+            State.ApplyMaterial(State.Loaded or State.Item, Parsed);
+            State.ApplyMaterial(State.Item, Parsed);
         end;
     });
     BackgroundPane:AddDivider();
