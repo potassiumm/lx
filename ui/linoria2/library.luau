@@ -13,6 +13,13 @@ local ScreenGui = Instance.new('ScreenGui');
 ProtectGui(ScreenGui);
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 ScreenGui.Parent = CoreGui;
+local DropdownGui = Instance.new('ScreenGui');
+ProtectGui(DropdownGui);
+DropdownGui.Name = 'xyro_dropdowns';
+DropdownGui.ResetOnSpawn = false;
+DropdownGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+DropdownGui.DisplayOrder = 1000;
+DropdownGui.Parent = CoreGui;
 local Toggles = {};
 local Options = {};
 getgenv().Toggles = Toggles;
@@ -612,7 +619,7 @@ do
             Size = UDim2.fromOffset(230, Info.Transparency and 271 or 253);
             Visible = false;
             ZIndex = 15;
-            Parent = ScreenGui,
+            Parent = DropdownGui,
         });
         DisplayFrame:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
             PickerFrameOuter.Position = UDim2.fromOffset(DisplayFrame.AbsolutePosition.X, DisplayFrame.AbsolutePosition.Y + 18);
@@ -796,7 +803,7 @@ do
                 BorderColor3 = Color3.new(),
                 ZIndex = 14,
                 Visible = false,
-                Parent = ScreenGui
+                Parent = DropdownGui
             })
             ContextMenu.Inner = Library:Create('Frame', {
                 BackgroundColor3 = Library.BackgroundColor;
@@ -1177,7 +1184,7 @@ do
             Size = UDim2.new(0, 72, 0, 47);
             Visible = false;
             ZIndex = 200;
-            Parent = ScreenGui;
+            Parent = DropdownGui;
         });
         local ModeSelectInner = Library:Create('Frame', {
             BackgroundColor3 = Library.BackgroundColor;
@@ -2663,7 +2670,7 @@ do
             BorderColor3 = Color3.new(0, 0, 0);
             ZIndex = 20;
             Visible = false;
-            Parent = ScreenGui;
+            Parent = DropdownGui;
         });
         local function RecalculateListPosition()
             ListOuter.Position = UDim2.fromOffset(DropdownOuter.AbsolutePosition.X, DropdownOuter.AbsolutePosition.Y + DropdownOuter.Size.Y.Offset + 1);
@@ -3002,10 +3009,10 @@ do
         BackgroundTransparency = 1;
         AnchorPoint = Library.NotifyConfig.AnchorPoint or Vector2.new(0.5, 0.5);
         Position = UDim2.new(Library.NotifyConfig.ScaleX or 0.5, Library.NotifyConfig.PositionX or 0, Library.NotifyConfig.ScaleY or 0.6, Library.NotifyConfig.PositionY or 0);
-        Size = UDim2.new(0, 2560, 0, Library.NotifyConfig.ClipPastDistance or 200);
+        Size = UDim2.new(1, 0, 0, Library.NotifyConfig.ClipPastDistance or 200);
         ClipsDescendants = true;
         ZIndex = 100;
-        Parent = ScreenGui;
+        Parent = DropdownGui;
     });
     Library.NotifLayout = Library:Create('UIListLayout', {
         Padding = UDim.new(0, 4);
@@ -3023,7 +3030,7 @@ do
         local anchor = cfg.AnchorPoint or Vector2.new(0.5, 0.5)
         area.AnchorPoint = anchor
         if scaleX ~= nil and scaleY ~= nil then
-            area.Position = UDim2.new(math.clamp(scaleX, 0, 1), cfg.PositionX or 0, math.clamp(scaleY, 0, 1), cfg.PositionY or 0)
+            area.Position = UDim2.new(0, cfg.PositionX or 0, 0, cfg.PositionY or 0)
         else
             area.Position = UDim2.new(0, cfg.PositionX or 0, 0, cfg.PositionY or 0)
         end
@@ -3036,7 +3043,7 @@ do
             layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         end
         layout.VerticalAlignment = Enum.VerticalAlignment.Top
-        area.Size = UDim2.new(0, 2560, 0, math.max(tonumber(cfg.ClipPastDistance) or 200, 1))
+        area.Size = UDim2.new(1, 0, 0, math.max(tonumber(cfg.ClipPastDistance) or 200, 1))
         area.ClipsDescendants = cfg.ClipDescendants ~= false
     end
     function Library:SetNotificationPosition(config)
@@ -3090,7 +3097,7 @@ do
             LayoutOrder = Library._NotifyOrder;
             Size = UDim2.new(0, 0, 0, YSize);
             ClipsDescendants = style.ClipDescendants ~= false;
-            BackgroundTransparency = 1;
+            BackgroundTransparency = transparency;
             ZIndex = 100;
             Parent = Library.NotificationArea;
         });
@@ -3100,7 +3107,7 @@ do
             BorderColor3 = borderColor;
             BorderMode = Enum.BorderMode.Inset;
             Size = UDim2.new(1, 0, 1, 0);
-            BackgroundTransparency = 1;
+            BackgroundTransparency = transparency;
             ZIndex = 101;
             Parent = NotifyOuter;
         });
@@ -3109,7 +3116,7 @@ do
             BorderColor3 = 'OutlineColor';
         }, true);
         local InnerFrame = Library:Create('Frame', {
-            BackgroundColor3 = Color3.new(1, 1, 1);
+            BackgroundColor3 = outerColor;
             BorderSizePixel = 0;
             Position = UDim2.new(0, 1, 0, 1);
             Size = UDim2.new(1, -2, 1, -2);
@@ -3439,12 +3446,12 @@ function Library:SetWatermark(Text)
     Library.WatermarkText.Text = Text;
 end;
 local BackgroundItems = {
-    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1 };
-    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 1 };
-    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 0.71 };
-    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 0.67 };
-    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 0.94 };
-    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 0.5 };
+    { Name = 'sword', Id = 'rbxassetid://48094745', Scale = 1, ReferenceSize = 9.6 };
+    { Name = 'cross', Id = 'rbxassetid://4411430922', Scale = 1, ReferenceSize = 9.6 };
+    { Name = 'heart', Id = 'rbxassetid://1717708486', Scale = 1, ReferenceSize = 9.6 };
+    { Name = 'catholic cross', Id = 'rbxassetid://11468548833', Scale = 1, ReferenceSize = 9.6 };
+    { Name = 'orthodox cross', Id = 'rbxassetid://103455023111282', Union = true, Scale = 1, ReferenceSize = 9.6 };
+    { Name = 'unnamed enhancements', Id = 'rbxassetid://140725710733849', Union = true, Scale = 1, ReferenceSize = 4.8 };
 }
 
 local BackgroundState = nil
@@ -3677,11 +3684,11 @@ local function EnsureBackground()
         return Url;
     end
 
-    local function FitTarget(Target, Scale)
+    local function FitTarget(Target, Scale, ReferenceSize)
         local Size = Target.Size;
         local Max = math.max(Size.X, Size.Y);
         if Max <= 0 then return end
-        local Factor = (State.TargetSize * Scale) / Max;
+        local Factor = (State.TargetSize * (tonumber(Scale) or 1)) / (tonumber(ReferenceSize) or Max);
         if Target:IsA('UnionOperation') then
             pcall(function() Target:ScaleTo(Factor) end);
             return
@@ -3689,7 +3696,7 @@ local function EnsureBackground()
         Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, Size.Z * Factor);
     end
 
-    local function FitMesh(Scale)
+    local function FitMesh(Scale, ReferenceSize)
         local Item, Mesh = State.Item, State.Mesh;
         local Applied = math.max(tonumber(Scale) or 1, 0.001);
         Mesh.Scale = Vector3.new(Applied, Applied, Applied);
@@ -3699,7 +3706,7 @@ local function EnsureBackground()
             if not Ok or typeof(Extents) ~= 'Vector3' then return end
             local Max = math.max(Extents.X, Extents.Y);
             if Max <= 0 then return end
-            local Factor = (State.TargetSize * Applied) / Max;
+            local Factor = (State.TargetSize * Applied) / (tonumber(ReferenceSize) or Max);
             Mesh.Scale = Vector3.new(Applied * Factor, Applied * Factor, Applied * Factor);
         end);
     end
@@ -3722,10 +3729,11 @@ local function EnsureBackground()
         State.Mesh.Parent = State.Item;
         State.Item.Parent = State.World;
         local Scale = tonumber(Def.Scale) or 1;
+        local ReferenceSize = tonumber(Def.ReferenceSize);
         local Loaded = LoadAssetPart(Def.Id);
         if Loaded then
             State.Loaded = Loaded;
-            pcall(function() FitTarget(Loaded, Scale) end);
+            pcall(function() FitTarget(Loaded, Scale, ReferenceSize) end);
             State.Item.Parent = nil;
         elseif Def.Union then
             task.spawn(function()
@@ -3734,12 +3742,20 @@ local function EnsureBackground()
                 if State.Mesh.MeshId ~= '' or not State.Item.Parent then return end
                 if Url then
                     State.Mesh.Parent = nil;
+                    pcall(function()
+                        local Factor = (State.TargetSize * Scale) / (ReferenceSize or State.Item.Size.X);
+                        State.Item.Size = Vector3.new(
+                            State.Item.Size.X * Factor,
+                            State.Item.Size.Y * Factor,
+                            State.Item.Size.Z * Factor
+                        );
+                    end);
                     State.Thumb.Texture = Url;
                 end
             end);
         else
             State.Mesh.MeshId = Def.Id;
-            FitMesh(Scale);
+            FitMesh(Scale, ReferenceSize);
         end
         ApplyItem();
     end
@@ -4601,7 +4617,7 @@ function Library:CreateWindow(...)
                 local TabOverlay = Library:Create('Frame', {
                     BackgroundColor3 = Library.MainColor;
                     BorderSizePixel = 1;
-                    BorderColor3 = Library.OutlineColor;
+                    BorderColor3 = Color3.new(0, 0, 0);
                     BorderMode = Enum.BorderMode.Inset;
                     Position = UDim2.new(0, -1, 0, -1);
                     Size = UDim2.new(1, 2, 1, 1);
@@ -4610,7 +4626,6 @@ function Library:CreateWindow(...)
                 });
                 Library:AddToRegistry(TabOverlay, {
                     BackgroundColor3 = 'MainColor';
-                    BorderColor3 = 'OutlineColor';
                 });
                 local TabHighlight = Library:Create('Frame', {
                     BackgroundColor3 = Library.AccentColor;
