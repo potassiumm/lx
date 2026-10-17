@@ -1771,7 +1771,6 @@ do
             Library:AddToRegistry(Outer, {
                 BorderColor3 = 'Black';
             });
-            Library:AddHoverScale(Outer, 1.02);
             Library:AddToRegistry(Inner, {
                 BackgroundColor3 = 'MainColor';
                 BorderColor3 = 'OutlineColor';
@@ -3653,6 +3652,10 @@ local function EnsureBackground()
         local Max = math.max(Size.X, Size.Y);
         if Max <= 0 then return end
         local Factor = (State.TargetSize * Scale) / Max;
+        if Target:IsA('UnionOperation') then
+            pcall(function() Target:ScaleTo(Factor) end);
+            return
+        end
         Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, State.Thickness);
     end
 
@@ -3680,7 +3683,7 @@ local function EnsureBackground()
         end
         if Loaded then
             State.Union = Loaded;
-            FitTarget(Loaded, Scale);
+            pcall(function() FitTarget(Loaded, Scale) end);
             State.Item.Parent = nil;
         else
             State.Mesh.MeshId = Def.Union and '' or Def.Id;
@@ -4531,7 +4534,8 @@ function Library:CreateWindow(...)
                 local Tab = {};
                 local Button = Library:Create('Frame', {
                     BackgroundColor3 = Library.MainColor;
-                    BorderSizePixel = 0;
+                    BorderColor3 = Color3.new(0, 0, 0);
+                    BorderSizePixel = 1;
                     Size = UDim2.new(0.5, 0, 1, 0);
                     ZIndex = 6;
                     Parent = TabboxButtons;
