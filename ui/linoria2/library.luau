@@ -207,7 +207,8 @@ function Library:CreateLabel(Properties, IsHud)
     }, IsHud);
     return Library:Create(_Instance, Properties);
 end;
-function Library:MakeDraggable(Instance, Cutoff, IsWindow)
+function Library:MakeDraggable(Instance, Cutoff, IsWindow, DragParent)
+    local WireParent = DragParent or ScreenGui;
     Instance.Active = true;
     Instance.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
@@ -236,7 +237,7 @@ function Library:MakeDraggable(Instance, Cutoff, IsWindow)
                                 BackgroundTransparency = 1,
                                 Active = false,
                                 ZIndex = 100000,
-                                Parent = ScreenGui
+                                Parent = WireParent
                             })
                             local stroke = Library:Create("UIStroke", {
                                 Color = Library.AccentColor,
@@ -406,6 +407,27 @@ function Library:OnHighlight(HighlightInstance, Instance, Properties, Properties
         end;
     end)
 end;
+function Library:AddHoverScale(Instance, Amount)
+    Amount = Amount or 1.03;
+    local Scale = Instance:FindFirstChildOfClass('UIScale');
+    if (not Scale) then
+        Scale = Library:Create('UIScale', {
+            Scale = 1;
+            Parent = Instance;
+        });
+    end;
+    local function TweenTo(Value)
+        local Tween = TweenService:Create(Scale, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = Value });
+        Tween:Play();
+    end;
+    Instance.MouseEnter:Connect(function()
+        TweenTo(Amount);
+    end);
+    Instance.MouseLeave:Connect(function()
+        TweenTo(1);
+    end);
+    return Scale;
+end;
 function Library:MouseIsOverOpenedFrame()
     for Frame, _ in next, Library.OpenedFrames do
         if Frame and Frame.Parent then
@@ -512,6 +534,10 @@ function Library:Unload()
     if Library.BlurEffect then
         Library.BlurEffect:Destroy()
     end
+    for _, PopoutGui in ipairs(Library.Popouts or {}) do
+        PopoutGui:Destroy()
+    end
+    Library.Popouts = {}
     ScreenGui:Destroy()
 end
 Library._UnloadCallback = nil
@@ -1745,6 +1771,7 @@ do
             Library:AddToRegistry(Outer, {
                 BorderColor3 = 'Black';
             });
+            Library:AddHoverScale(Outer, 1.02);
             Library:AddToRegistry(Inner, {
                 BackgroundColor3 = 'MainColor';
                 BorderColor3 = 'OutlineColor';
@@ -3448,7 +3475,7 @@ local function EnsureBackground()
     GuiHolder.Name = 'xyrobackground';
     GuiHolder.ResetOnSpawn = false;
     GuiHolder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
-    GuiHolder.DisplayOrder = 1;
+    GuiHolder.DisplayOrder = -1;
     ProtectGui(GuiHolder);
     local GuiRoot = CoreGui;
     pcall(function()
@@ -3658,7 +3685,7 @@ local function EnsureBackground()
         else
             State.Mesh.MeshId = Def.Union and '' or Def.Id;
             local Flat = State.Thickness / State.TargetSize;
-            State.Mesh.Scale = Vector3.new(Scale, Scale, Scale * Flat);        end
+            State.Mesh.Scale = Vector3.new(Scale, Scale, Scale * Flat); end
         ApplyItem();
     end
 
@@ -4928,5 +4955,179 @@ if InputService.TouchEnabled then
         _origUpdate(self)
     end
 end
+
+function Library:CreatePopout(Config)
+    Config = Config or {}
+    if type(Config.Title) ~= 'string' then Config.Title = 'No title' end
+    if typeof(Config.Position) ~= 'UDim2' then Config.Position = UDim2.fromOffset(175, 50) end
+    local SizeX, SizeY = 669, 655
+    if typeof(Config.Size) == 'UDim2' then
+        SizeX = Config.Size.X.Offset
+        SizeY = Config.Size.Y.Offset
+    elseif type(Config.Size) == 'table' then
+        SizeX = tonumber(Config.Size.X) or SizeX
+        SizeY = tonumber(Config.Size.Y) or SizeY
+    end
+    if Config.Center then
+        Config.AnchorPoint = Vector2.new(0.5, 0.5)
+        Config.Position = UDim2.fromScale(0.5, 0.5)
+    end
+
+    local PopoutGui = Instance.new('ScreenGui')
+    ProtectGui(PopoutGui)
+    PopoutGui.Name = 'popout'
+    PopoutGui.ResetOnSpawn = false
+    PopoutGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    PopoutGui.DisplayOrder = (Config.DisplayOrder or 0) + 19
+    local PopoutRoot = CoreGui
+    pcall(function()
+        if type(gethui) == 'function' then PopoutRoot = gethui() end
+    end)
+    PopoutGui.Parent = PopoutRoot
+
+    local Popout = {}
+
+    local Holder = Library:Create('Frame', {
+        AnchorPoint = Config.AnchorPoint or Vector2.zero,
+        BackgroundColor3 = Color3.new(0, 0, 0),
+        BorderSizePixel = 0,
+        Position = Config.Position,
+        Size = UDim2.fromOffset(SizeX, SizeY),
+        Visible = Config.AutoShow == true,
+        ZIndex = 1,
+        Parent = PopoutGui,
+    })
+    Library:MakeDraggable(Holder, 25, true, PopoutGui)
+
+    local Inner = Library:Create('Frame', {
+        BackgroundColor3 = Library.MainColor,
+        BorderColor3 = Library.OutlineColor,
+        BorderMode = Enum.BorderMode.Inset,
+        Position = UDim2.new(0, 1, 0, 1),
+        Size = UDim2.new(1, -2, 1, -2),
+        ZIndex = 1,
+        Parent = Holder,
+    })
+    Library:AddToRegistry(Inner, {
+        BackgroundColor3 = 'MainColor',
+        BorderColor3 = 'OutlineColor',
+    })
+
+    local TitleLabel = Library:CreateLabel({
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 0, 25),
+        Text = Config.Title,
+        RichText = true,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ZIndex = 1,
+        Parent = Inner,
+    })
+    local StatusLabel = Library:CreateLabel({
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -7, 0, 0),
+        Size = UDim2.new(0, 0, 0, 25),
+        Text = Config.Status or '',
+        TextColor3 = Library.AccentColor,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        ZIndex = 1,
+        Parent = Inner,
+    })
+    Library:RemoveFromRegistry(StatusLabel)
+    Library:AddToRegistry(StatusLabel, {
+        TextColor3 = 'AccentColor',
+    })
+
+    local ContentOuter = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor,
+        BorderColor3 = Library.OutlineColor,
+        Position = UDim2.new(0, 8, 0, 25),
+        Size = UDim2.new(1, -16, 1, -33),
+        ZIndex = 1,
+        Parent = Inner,
+    })
+    Library:AddToRegistry(ContentOuter, {
+        BackgroundColor3 = 'BackgroundColor',
+        BorderColor3 = 'OutlineColor',
+    })
+    local ContentInner = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor,
+        BorderColor3 = Color3.new(0, 0, 0),
+        BorderMode = Enum.BorderMode.Inset,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 1,
+        Parent = ContentOuter,
+    })
+    Library:AddToRegistry(ContentInner, {
+        BackgroundColor3 = 'BackgroundColor',
+    })
+    local ContentBox = Library:Create('Frame', {
+        BackgroundColor3 = Library.BackgroundColor,
+        BorderColor3 = Library.OutlineColor,
+        Position = UDim2.new(0, 8, 0, 8),
+        Size = UDim2.new(1, -16, 1, -16),
+        ZIndex = 2,
+        Visible = true,
+        Parent = ContentInner,
+    })
+    Library:AddToRegistry(ContentBox, {
+        BackgroundColor3 = 'BackgroundColor',
+        BorderColor3 = 'OutlineColor',
+    })
+
+    local Container = Library:Create('Frame', {
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(2, 2),
+        Size = UDim2.fromScale(1, 1),
+        Parent = ContentBox,
+    })
+    Library:Create('UIListLayout', {
+        Padding = UDim.new(0, 0),
+        FillDirection = Enum.FillDirection.Vertical,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        HorizontalAlignment = Enum.HorizontalAlignment.Left,
+        Parent = Container,
+    })
+
+    Popout.Holder = Holder
+    Popout.Container = Container
+    Popout.StatusLabel = StatusLabel
+    Popout.ScreenGui = PopoutGui
+
+    function Popout:Resize()
+        local ContentHeight = 0
+        for _, Element in next, Container:GetChildren() do
+            if (not Element:IsA('UIListLayout')) and Element.Visible then
+                ContentHeight = ContentHeight + Element.AbsoluteSize.Y
+            end
+        end
+        Holder.Size = UDim2.fromOffset(SizeX, 16 + ContentHeight + (Container.AbsolutePosition.Y - Holder.AbsolutePosition.Y))
+    end
+    function Popout:Toggle()
+        Holder.Visible = not Holder.Visible
+    end
+    function Popout:SetVisible(Bool)
+        Holder.Visible = Bool == true
+    end
+    function Popout:IsVisible()
+        return Holder.Visible
+    end
+    function Popout:GetSize()
+        return Container.AbsoluteSize
+    end
+
+    Container:GetPropertyChangedSignal('AbsoluteSize'):Connect(function()
+        task.wait()
+        Popout:Resize()
+    end)
+    Popout:Resize()
+    setmetatable(Popout, BaseGroupbox)
+
+    Library.Popouts = Library.Popouts or {}
+    table.insert(Library.Popouts, PopoutGui)
+
+    return Popout
+end
+
 getgenv().Library = Library
 return Library
