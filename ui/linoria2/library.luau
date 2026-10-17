@@ -3494,7 +3494,7 @@ local function EnsureBackground()
     local GuiHolder = Instance.new('ScreenGui');
     GuiHolder.ResetOnSpawn = false;
     GuiHolder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
-    GuiHolder.IgnoreGuiInset = false;
+    GuiHolder.IgnoreGuiInset = true;
     GuiHolder.DisplayOrder = -1;
     ProtectGui(GuiHolder);
     local GuiRoot = CoreGui;
@@ -3689,6 +3689,22 @@ local function EnsureBackground()
         };
     end
 
+    local function ContentFromId(AssetId)
+        local Digits = tostring(AssetId):match('%d+') or '';
+        local Uri = 'rbxassetid://' .. Digits;
+        if Content then
+            if Content.fromUri then
+                local Ok, Value = pcall(function() return Content.fromUri(Uri) end);
+                if Ok and Value then return Value end
+            end
+            if Content.fromAssetId then
+                local Ok, Value = pcall(function() return Content.fromAssetId(tonumber(Digits)) end);
+                if Ok and Value then return Value end
+            end
+        end
+        return nil;
+    end
+
     local function SetUnionAsset(Part, AssetId)
         local Digits = tostring(AssetId):match('%d+') or '';
         local Url = 'https://www.roblox.com//asset/?id=' .. Digits;
@@ -3704,17 +3720,13 @@ local function EnsureBackground()
             Part.AssetId = Url;
             AssetOk = true;
         end);
-        pcall(function()
-            if Content ~= nil then
-                if Content.fromAssetId then
-                    Part.Content = Content.fromAssetId(tonumber(Digits));
-                    ContentOk = true;
-                elseif Content.fromUri then
-                    Part.Content = Content.fromUri(Url);
-                    ContentOk = true;
-                end
-            end
-        end);
+        local Value = ContentFromId(AssetId);
+        if Value then
+            pcall(function()
+                Part.Content = Value;
+                ContentOk = true;
+            end);
+        end
         if not AssetOk and not ContentOk then
             pcall(function()
                 if type(sethiddenproperty) == 'function' and sethiddenproperty(Part, 'AssetId', Url) then
@@ -3831,6 +3843,10 @@ local function EnsureBackground()
             end
         else
             with_identity(8, function()
+                local Value = ContentFromId(Def.Id);
+                if Value then
+                    pcall(function() Part.MeshContent = Value end);
+                end
                 pcall(function() Part.MeshId = tostring(Def.Id) end);
             end);
             Log('mesh set id=%s name=%s', tostring(Def.Id), tostring(Def.Name));
