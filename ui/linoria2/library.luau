@@ -3494,7 +3494,7 @@ local function EnsureBackground()
     local GuiHolder = Instance.new('ScreenGui');
     GuiHolder.ResetOnSpawn = false;
     GuiHolder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling;
-    GuiHolder.IgnoreGuiInset = true;
+    GuiHolder.IgnoreGuiInset = false;
     GuiHolder.DisplayOrder = -1;
     ProtectGui(GuiHolder);
     local GuiRoot = CoreGui;
@@ -3649,6 +3649,11 @@ local function EnsureBackground()
         local Target = math.min(State.TargetSize * (tonumber(Scale) or 1), 4);
         local Factor = Target / MaxD;
         if Part:IsA('UnionOperation') then
+            local Cur = Part.Size;
+            local CurMax = math.max(Cur.X, Cur.Y, Cur.Z);
+            if CurMax > 0 then
+                Factor = Target / CurMax;
+            end
             pcall(function() Part:ScaleTo(Factor) end);
         else
             pcall(function() Part.Size = Vector3.new(Native.X * Factor, Native.Y * Factor, Native.Z * Factor) end);
@@ -3790,6 +3795,24 @@ local function EnsureBackground()
         pcall(function() if Old then Old:Destroy() end end);
     end
 
+    local function AwaitUnionGeometry(Part, Initial)
+        local Step = 0;
+        while Step < 100 do
+            local Size = Part.Size;
+            if Size.X ~= Initial.X or Size.Y ~= Initial.Y or Size.Z ~= Initial.Z then
+                Log('union geometry %s steps=%d size=%s', tostring(Part.Name), Step, tostring(Size));
+                return Size;
+            end
+            if Step % 25 == 0 then
+                Log('union wait %s step=%d size=%s', tostring(Part.Name), Step, tostring(Size));
+            end
+            task.wait(0.1);
+            Step = Step + 1;
+        end
+        Log('union timeout %s size=%s', tostring(Part.Name), tostring(Part.Size));
+        return nil;
+    end
+
     local function LoadItem(Entry)
         local Def = Entry.Def;
         local Scale = tonumber(Def.Scale) or 1;
@@ -3801,8 +3824,10 @@ local function EnsureBackground()
                 Part = Entry.Part;
                 Log('union primary %s via=getobjects class=%s size=%s', tostring(Def.Name), Part.ClassName, tostring(Part.Size));
             else
+                local Initial = Part.Size;
                 SetUnionAsset(Part, Def.Id);
                 Log('union fallback %s via=setscriptable', tostring(Def.Name));
+                AwaitUnionGeometry(Part, Initial);
             end
         else
             with_identity(8, function()
