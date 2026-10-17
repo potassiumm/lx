@@ -3517,6 +3517,7 @@ local function EnsureBackground()
     Viewport.ZIndex = -10;
     Viewport.Parent = BackgroundFrame;
     pcall(function() Viewport.CameraCFrame = CFrame.new(); end);
+    pcall(function() Viewport.CameraFieldOfView = 20; end);
 
     BackgroundState = {
         Items = {};
@@ -3567,7 +3568,7 @@ local function EnsureBackground()
     local function PlaceTarget()
         local Target = State.Item;
         if not Target then return end
-        Target.CFrame = CFrame.new(0, 0, -14) * CFrame.Angles(0, State.Spin, 0);
+        Target.CFrame = CFrame.new(0, 0, -56) * CFrame.Angles(0, State.Spin, 0);
     end
 
     local function ApplyMaterial(Target, Material)
