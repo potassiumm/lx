@@ -3528,8 +3528,6 @@ local function EnsureBackground()
         Gui = GuiHolder;
         Frame = BackgroundFrame;
         Viewport = Viewport;
-        Marketplace = game:GetService('MarketplaceService');
-        ThumbCache = {};
         Spin = 0;
         Speed = 10;
         Transparency = 100;
@@ -3618,40 +3616,61 @@ local function EnsureBackground()
         ApplyItem();
     end
 
-    local function LoadAssetThumbnail(AssetId)
-        local Digits = tostring(AssetId):match('%d+');
-        if not Digits then return nil end
-        local Info = nil;
-        pcall(function() Info = State.Marketplace:GetProductInfo(tonumber(Digits), Enum.InfoType.Asset) end);
-        local Url = type(Info) == 'table' and Info.ImageUrl or nil;
-        if type(Url) ~= 'string' or Url == '' then
-            Url = 'rbxthumb://type=Asset&id=' .. Digits .. '&w=420&h=420';
-        end
-        return Url;
+    local function Log(Format, ...)
+        local Args = { ... };
+        pcall(function() print('[xyro-bg] ' .. string.format(Format, unpack(Args))) end);
     end
 
-    local function FitTarget(Target, Scale)
-        local Size = Target.Size;
-        local Max = math.max(Size.X, Size.Y);
-        if Max <= 0 then return end
-        local Factor = (State.TargetSize * (tonumber(Scale) or 1)) / Max;
-        pcall(function() print(('[xyro-bg] fit %s size=%s factor=%.3f'):format(tostring(Target.Name), tostring(Size), Factor)) end);
-        if Target:IsA('UnionOperation') then
-            pcall(function() Target:ScaleTo(Factor) end);
-            return
+    local function AwaitStableBounds(Part, IsMesh)
+        local function Read()
+            if IsMesh then
+                local Ok, MeshSize = pcall(function() return Part.MeshSize end);
+                if Ok and typeof(MeshSize) == 'Vector3' and MeshSize.X > 0 and MeshSize.Y > 0 then
+                    return MeshSize;
+                end
+                return nil;
+            end
+            local Size = Part.Size;
+            if Size.X > 0 and Size.Y > 0 then return Size end
+            return nil;
         end
-        Target.Size = Vector3.new(Size.X * Factor, Size.Y * Factor, Size.Z * Factor);
-    end
-
-    local function AwaitGeometry(Part)
-        local Before = Part.Size;
+        local Last = Read();
+        local Stable = 0;
         local Step = 0;
-        while Step < 50 do
-            task.wait(0.1);
+        while Step < 160 and Stable < 15 do
+            task.wait(0.05);
             Step = Step + 1;
-            if Part.Size ~= Before then return true end
+            local Cur = Read();
+            if Cur then
+                if Last and Cur == Last then
+                    Stable = Stable + 1;
+                else
+                    Stable = 0;
+                end
+                Last = Cur;
+            end
         end
-        return false;
+        Log('bounds %s ismesh=%s steps=%d value=%s', tostring(Part.Name), tostring(IsMesh), Step, tostring(Last));
+        return Last;
+    end
+
+    local function ScaleUniform(Part, Bounds, Scale)
+        if not Bounds then
+            Log('scale skip %s no bounds', tostring(Part.Name));
+            return;
+        end
+        local MaxD = math.max(Bounds.X, Bounds.Y);
+        if MaxD <= 0 then
+            Log('scale skip %s maxd=%s', tostring(Part.Name), tostring(MaxD));
+            return;
+        end
+        local Factor = (State.TargetSize * (tonumber(Scale) or 1)) / MaxD;
+        if Part:IsA('UnionOperation') then
+            pcall(function() Part:ScaleTo(Factor) end);
+        else
+            pcall(function() Part.Size = Vector3.new(Bounds.X * Factor, Bounds.Y * Factor, Bounds.Z * Factor) end);
+        end
+        Log('scale %s factor=%.6f bounds=%s size=%s', tostring(Part.Name), Factor, tostring(Bounds), tostring(Part.Size));
     end
 
     local function BuildItem(Def)
@@ -3675,6 +3694,7 @@ local function EnsureBackground()
         Part.Color = State.Color;
         pcall(function() Part.UsePartColor = true end);
         Part.Parent = Viewport;
+        Log('build %s class=%s union=%s', tostring(Def.Name), Part.ClassName, tostring(Def.Union == true));
         return {
             Def = Def;
             Part = Part;
@@ -3714,7 +3734,7 @@ local function EnsureBackground()
                 end
             end);
         end
-        pcall(function() print(('[xyro-bg] union asset id=%s assetid=%s content=%s'):format(tostring(AssetId), tostring(AssetOk), tostring(ContentOk))) end);
+        Log('union asset id=%s assetid=%s content=%s', tostring(AssetId), tostring(AssetOk), tostring(ContentOk));
     end
 
     local function TryGetObjects(AssetId)
@@ -3730,45 +3750,24 @@ local function EnsureBackground()
                 Source = 'game:GetObjects';
             end
         end);
-        pcall(function() print(('[xyro-bg] getobjects id=%s via=%s count=%s'):format(tostring(AssetId), Source ~= '' and Source or 'missing', tostring(type(Objects) == 'table' and #Objects or -1))) end);
+        local Count = type(Objects) == 'table' and #Objects or -1;
+        Log('getobjects id=%s via=%s count=%s', tostring(AssetId), Source ~= '' and Source or 'missing', tostring(Count));
         if type(Objects) ~= 'table' then return nil end
-        for _, Obj in ipairs(Objects) do
+        for Index, Obj in ipairs(Objects) do
+            local Kind = typeof(Obj) == 'Instance' and Obj.ClassName or tostring(typeof(Obj));
+            local Found = nil;
             if typeof(Obj) == 'Instance' then
-                if Obj:IsA('BasePart') then return Obj end
-                local Ok, Found = pcall(function() return Obj:FindFirstChildWhichIsA('BasePart', true) end);
-                if Ok and Found then return Found end
+                if Obj:IsA('BasePart') then
+                    Found = Obj;
+                else
+                    local Ok, Child = pcall(function() return Obj:FindFirstChildWhichIsA('BasePart', true) end);
+                    if Ok then Found = Child end
+                end
             end
+            Log('getobjects[%d] kind=%s part=%s', tostring(Index), Kind, tostring(Found and Found.ClassName or 'nil'));
+            if Found then return Found end
         end
         return nil;
-    end
-
-    local function BuildThumbItem(Def)
-        local Part = Instance.new('Part');
-        Part.Name = Def.Name;
-        Part.Anchored = true;
-        Part.CanCollide = false;
-        Part.CanQuery = false;
-        Part.CanTouch = false;
-        Part.CastShadow = false;
-        Part.Massless = true;
-        Part.Size = Vector3.new(4, 4, 0.1);
-        Part.Transparency = 1;
-        Part.Parent = Viewport;
-        local Url = State.ThumbCache[Def.Id];
-        if not Url then
-            Url = LoadAssetThumbnail(Def.Id);
-            State.ThumbCache[Def.Id] = Url;
-        end
-        if Url then
-            for _, Face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
-                local Thumb = Instance.new('Decal');
-                Thumb.Name = 'thumbnail';
-                Thumb.Face = Face;
-                Thumb.Texture = Url;
-                Thumb.Parent = Part;
-            end
-        end
-        return Part;
     end
 
     local function SwapPart(Entry, NewPart)
@@ -3798,25 +3797,26 @@ local function EnsureBackground()
         local Scale = tonumber(Def.Scale) or 1;
         local Part = Entry.Part;
         if Def.Union then
-            SetUnionAsset(Part, Def.Id);
-        else
-            pcall(function() Part.MeshId = tostring(Def.Id) end);
-        end
-        local Loaded = AwaitGeometry(Part);
-        if not Loaded and Def.Union then
             local Real = TryGetObjects(Def.Id);
             if Real then
                 SwapPart(Entry, Real);
                 Part = Entry.Part;
-                Loaded = true;
+                Log('union primary %s via=getobjects class=%s', tostring(Def.Name), Part.ClassName);
+                local Bounds = AwaitStableBounds(Part, false);
+                ScaleUniform(Part, Bounds, Scale);
+            else
+                SetUnionAsset(Part, Def.Id);
+                Log('union fallback %s via=setscriptable', tostring(Def.Name));
+                local Bounds = AwaitStableBounds(Part, false);
+                ScaleUniform(Part, Bounds, Scale);
             end
+        else
+            pcall(function() Part.MeshId = tostring(Def.Id) end);
+            Log('mesh set id=%s name=%s', tostring(Def.Id), tostring(Def.Name));
+            local Bounds = AwaitStableBounds(Part, true);
+            ScaleUniform(Part, Bounds, Scale);
         end
-        if not Loaded and Def.Union then
-            SwapPart(Entry, BuildThumbItem(Def));
-            Part = Entry.Part;
-        end
-        pcall(function() FitTarget(Part, Scale) end);
-        pcall(function() print(('[xyro-bg] item ready name=%s class=%s loaded=%s size=%s'):format(tostring(Def.Name), tostring(Part.ClassName), tostring(Loaded), tostring(Part.Size))) end);
+        Log('item ready name=%s class=%s size=%s', tostring(Def.Name), tostring(Part.ClassName), tostring(Part.Size));
         ApplyItem();
     end
 
@@ -3832,7 +3832,7 @@ local function EnsureBackground()
         State.NoItem = Def == nil;
         local Entry = Def and State.Items[Def.Name] or nil;
         State.Item = Entry and Entry.Part or nil;
-        pcall(function() print(('[xyro-bg] set name=%s selected=%s'):format(tostring(Name), tostring(State.Selected ~= nil))) end);
+        Log('set name=%s selected=%s', tostring(Name), tostring(State.Selected ~= nil));
         ApplyItem();
     end
 
@@ -3865,16 +3865,6 @@ local function EnsureBackground()
     end);
 
     Refresh();
-
-    task.spawn(function()
-        for _, Def in ipairs(BackgroundItems) do
-            pcall(function()
-                if Def.Union and not State.ThumbCache[Def.Id] then
-                    State.ThumbCache[Def.Id] = LoadAssetThumbnail(Def.Id);
-                end
-            end);
-        end
-    end);
 
     return BackgroundState;
 end
