@@ -35,10 +35,10 @@ if not game.HttpGet then
     return
 end
 
-local repo = 'https://raw.githubusercontent.com/violin-suzutsuki/LinoriaLib/main/'
-local lib = loadstring(game:HttpGet(repo .. 'Library.lua'))()
-local ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
-local SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
+local repo = 'https://raw.githubusercontent.com/potassiumm/lx/refs/heads/main/ui/linoria2/'
+local lib = loadstring(game:HttpGet(repo .. 'library.luau'))()
+local ThemeManager = loadstring(game:HttpGet(repo .. 'assets/ThemeManager.luau'))()
+local SaveManager = loadstring(game:HttpGet(repo .. 'assets/SaveManager.luau'))()
 
 local Toggles = getgenv().Toggles
 local Options = getgenv().Options
@@ -70,18 +70,18 @@ local player = game.Players.LocalPlayer
 local kick_msg = "the game files are not the same as expected (are u in the right game?)"
 
 local function get_module(parent, ...)
-	local current = parent
-	for _, name in ipairs({...}) do
-		if not current then
-			player:Kick(kick_msg)
-		end
-		current = current:WaitForChild(name, 5)
-	end
-	if not current then
-		player:Kick(kick_msg)
+    local current = parent
+    for _, name in ipairs({...}) do
+        if not current then
+            player:Kick(kick_msg)
+        end
+        current = current:WaitForChild(name, 5)
+    end
+    if not current then
+        player:Kick(kick_msg)
         return
-	end
-	return require(current)
+    end
+    return require(current)
 end
 
 local deagle_controller = get_module(module_loader, "DeagleController")
@@ -555,19 +555,19 @@ end
 local function apply_chams(char)
     if not char or not char.Parent then return end
     if not flags["chams_on"] then
-        if char:FindFirstChild("xyroChams") then char.xyroChams:Destroy() end
+        if char:FindFirstChild("c") then char.c:Destroy() end
         return
     end
     
-    if not char:FindFirstChild("xyroChams") then
+    if not char:FindFirstChild("c") then
         local h = Instance.new("Highlight")
-        h.Name = "xyroChams"
+        h.Name = "c"
         h.FillColor = chams_color
         h.OutlineColor = Color3.new(1, 1, 1)
         h.Parent = char
     end
     
-    local c = char.xyroChams
+    local c = char.c
     c.FillColor = chams_color
     c.FillTransparency = 0.5
     c.OutlineTransparency = 0
