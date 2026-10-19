@@ -20,6 +20,12 @@ DropdownGui.ResetOnSpawn = false;
 DropdownGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 DropdownGui.DisplayOrder = 1000;
 DropdownGui.Parent = CoreGui;
+local OverlayGui = Instance.new('ScreenGui');
+ProtectGui(OverlayGui);
+OverlayGui.ResetOnSpawn = false;
+OverlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
+OverlayGui.DisplayOrder = 10100;
+OverlayGui.Parent = CoreGui;
 
 local function with_identity(Level, Fn)
     local Old = nil;
@@ -117,11 +123,13 @@ function Library:UpdateBlur()
 end
 function Library:SetFontSize(Size)
     Library.FontSize = Size
-    for _, descendant in pairs(ScreenGui:GetDescendants()) do
-        if descendant:IsA("TextLabel") or descendant:IsA("TextBox") or descendant:IsA("TextButton") then
-            local offset = descendant:GetAttribute("FontSizeOffset")
-            if offset then
-                descendant.TextSize = Size + offset
+    for _, gui in ipairs({ScreenGui, OverlayGui}) do
+        for _, descendant in pairs(gui:GetDescendants()) do
+            if descendant:IsA("TextLabel") or descendant:IsA("TextBox") or descendant:IsA("TextButton") then
+                local offset = descendant:GetAttribute("FontSizeOffset")
+                if offset then
+                    descendant.TextSize = Size + offset
+                end
             end
         end
     end
@@ -305,7 +313,7 @@ function Library:AddToolTip(InfoStr, HoverInstance)
         BorderColor3 = Library.OutlineColor;
         Size = UDim2.fromOffset(X + 5, Y + 4),
         ZIndex = 100,
-        Parent = Library.ScreenGui,
+        Parent = OverlayGui,
         Visible = false,
     })
     local Label = Library:CreateLabel({
@@ -3028,7 +3036,7 @@ do
         Size = UDim2.new(1, 0, 0, Library.NotifyConfig.ClipPastDistance or 200);
         ClipsDescendants = true;
         ZIndex = 100;
-        Parent = DropdownGui;
+        Parent = OverlayGui;
     });
     Library.NotifLayout = Library:Create('UIListLayout', {
         Padding = UDim.new(0, 4);
@@ -3193,7 +3201,7 @@ Library.NotificationAreaBottom = Library:Create('Frame', {
     Size = UDim2.new(0, 300, 0, 0);
     AutomaticSize = Enum.AutomaticSize.Y;
     ZIndex = 100;
-    Parent = ScreenGui;
+    Parent = OverlayGui;
 });
 Library.NotifLayoutBottom = Library:Create('UIListLayout', {
     Padding = UDim.new(0, 4);
@@ -3631,26 +3639,19 @@ local function EnsureBackground()
         ApplyItem();
     end
 
-    local function Log(Format, ...)
-        local Args = { ... };
-    end
-
     local function LoadContent(Part)
         local Provider = game:GetService('ContentProvider');
         local Ok, Err = pcall(function()
             Provider:PreloadAsync({ Part });
         end);
-        Log('preload %s ok=%s err=%s', tostring(Part.Name), tostring(Ok), tostring(Ok and '' or Err));
     end
 
     local function ScaleUniform(Part, Scale, Bounds)
         if not Bounds then
-            Log('scale %s no bounds', tostring(Part.Name));
             return;
         end
         local MaxD = math.max(Bounds.X, Bounds.Y, Bounds.Z);
         if MaxD <= 0 then
-            Log('scale %s maxd=%s', tostring(Part.Name), tostring(MaxD));
             return;
         end
         local Target = math.min(State.TargetSize * (tonumber(Scale) or 1), 4);
@@ -3660,7 +3661,6 @@ local function EnsureBackground()
         else
             pcall(function() Part.Size = Vector3.new(Bounds.X * Factor, Bounds.Y * Factor, Bounds.Z * Factor) end);
         end
-        Log('scale %s factor=%.6f bounds=%s size=%s', tostring(Part.Name), Factor, tostring(Bounds), tostring(Part.Size));
     end
 
     local function BuildItem(Def)
@@ -3684,7 +3684,6 @@ local function EnsureBackground()
         Part.Color = State.Color;
         pcall(function() Part.UsePartColor = true end);
         Part.Parent = Viewport;
-        Log('build %s class=%s union=%s', tostring(Def.Name), Part.ClassName, tostring(Def.Union == true));
         return {
             Def = Def;
             Part = Part;
@@ -3728,7 +3727,6 @@ local function EnsureBackground()
             if Ok and Result then
                 Value = Result;
             else
-                Log('union fromuri fail %s err=%s', tostring(Part.Name), tostring(Result));
             end
         end
         if not Value then
@@ -3740,7 +3738,6 @@ local function EnsureBackground()
             end);
             ContentOk = Ok;
             if not Ok then
-                Log('union content fail %s err=%s', tostring(Part.Name), tostring(Err));
             end
         end
         if not AssetOk and not ContentOk then
@@ -3750,7 +3747,6 @@ local function EnsureBackground()
                 end
             end);
         end
-        Log('union asset id=%s assetid=%s content=%s', tostring(AssetId), tostring(AssetOk), tostring(ContentOk));
     end
 
     local function TryGetObjects(AssetId)
@@ -3769,7 +3765,6 @@ local function EnsureBackground()
             end);
         end);
         local Count = type(Objects) == 'table' and #Objects or -1;
-        Log('getobjects id=%s via=%s count=%s', tostring(AssetId), Source ~= '' and Source or 'missing', tostring(Count));
         if type(Objects) ~= 'table' then return nil end
         local Found = nil;
         with_identity(8, function()
@@ -3797,7 +3792,6 @@ local function EnsureBackground()
                 if Found then break end
             end
         end);
-        Log('getobjects part=%s', tostring(Found and Found.ClassName or 'nil'));
         return Found;
     end
 
@@ -3828,16 +3822,13 @@ local function EnsureBackground()
         while Step < 100 do
             local Size = Part.Size;
             if Size.X ~= Initial.X or Size.Y ~= Initial.Y or Size.Z ~= Initial.Z then
-                Log('union geometry %s steps=%d size=%s', tostring(Part.Name), Step, tostring(Size));
                 return Size;
             end
             if Step % 25 == 0 then
-                Log('union wait %s step=%d size=%s', tostring(Part.Name), Step, tostring(Size));
             end
             task.wait(0.1);
             Step = Step + 1;
         end
-        Log('union timeout %s size=%s', tostring(Part.Name), tostring(Part.Size));
         return nil;
     end
 
@@ -3854,16 +3845,13 @@ local function EnsureBackground()
                 end);
             end);
             if Measured then
-                Log('meshsize %s steps=%d value=%s', tostring(Part.Name), Step, tostring(Measured));
                 return Measured;
             end
             if Step % 25 == 0 then
-                Log('meshsize wait %s step=%d', tostring(Part.Name), Step);
             end
             task.wait(0.1);
             Step = Step + 1;
         end
-        Log('meshsize timeout %s', tostring(Part.Name));
         return nil;
     end
 
@@ -3878,17 +3866,14 @@ local function EnsureBackground()
                 SwapPart(Entry, Real);
                 Part = Entry.Part;
                 Bounds = Part.Size;
-                Log('union primary %s via=getobjects class=%s size=%s', tostring(Def.Name), Part.ClassName, tostring(Bounds));
             else
                 local Initial = Part.Size;
                 SetUnionAsset(Part, Def.Id);
-                Log('union fallback %s via=setscriptable', tostring(Def.Name));
                 Bounds = AwaitUnionGeometry(Part, Initial);
             end
         elseif Real and Real:IsA('MeshPart') then
             SwapPart(Entry, Real);
             Part = Entry.Part;
-            Log('mesh primary %s via=getobjects class=%s', tostring(Def.Name), Part.ClassName);
             LoadContent(Part);
             Bounds = AwaitMeshSize(Part);
         else
@@ -3910,16 +3895,13 @@ local function EnsureBackground()
                     MeshIdOk = true;
                 end);
             end);
-            Log('mesh set id=%s name=%s content=%s meshid=%s hasvalue=%s', tostring(Def.Id), tostring(Def.Name), tostring(ContentOk), tostring(MeshIdOk), tostring(Value ~= nil));
             LoadContent(Part);
             Bounds = AwaitMeshSize(Part);
         end
         if not Bounds then
             Bounds = Def.Native;
-            Log('scale fallback %s native=%s', tostring(Def.Name), tostring(Bounds));
         end
         ScaleUniform(Part, Scale, Bounds);
-        Log('item ready name=%s class=%s size=%s', tostring(Def.Name), tostring(Part.ClassName), tostring(Part.Size));
         ApplyItem();
     end
 
@@ -3935,7 +3917,6 @@ local function EnsureBackground()
         State.NoItem = Def == nil;
         local Entry = Def and State.Items[Def.Name] or nil;
         State.Item = Entry and Entry.Part or nil;
-        Log('set name=%s selected=%s', tostring(Name), tostring(State.Selected ~= nil));
         ApplyItem();
     end
 
@@ -4225,7 +4206,6 @@ function Library:CreateSettingsPanes(Tab, Config)
                 local Ok, Found = pcall(function() return Enum.Material[Value] end);
                 if Ok then Parsed = Found end;
             end
-            pcall(function() print(('[xyro-bg] material value=%s parsed=%s'):format(tostring(Value), tostring(Parsed))) end);
             if typeof(Parsed) ~= 'EnumItem' then return end
             State.Material = Parsed;
             State.ApplyItem();
@@ -4484,7 +4464,7 @@ function Library:CreateWindow(...)
         BorderSizePixel = 0;
         Position = UDim2.new(1, 0, 1, 0);
         Size = UDim2.fromOffset(46, 46);
-        ZIndex = 10;
+        ZIndex = 4;
         Parent = Inner;
     });
     Library:Create('UICorner', {
