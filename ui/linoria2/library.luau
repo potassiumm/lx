@@ -2852,6 +2852,7 @@ do
                             Dropdown:Display();
                             Library:SafeCallback(Dropdown.Callback, Dropdown.Value);
                             Library:SafeCallback(Dropdown.Changed, Dropdown.Value);
+                            Library:UpdateDependencyBoxes();
                             Library:AttemptSave();
                         end;
                     end;
@@ -2907,6 +2908,7 @@ do
             Dropdown:BuildDropdownList();
             Library:SafeCallback(Dropdown.Callback, Dropdown.Value);
             Library:SafeCallback(Dropdown.Changed, Dropdown.Value);
+            Library:UpdateDependencyBoxes();
         end;
         DropdownOuter.InputBegan:Connect(function(Input)
             if (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) and not Library:MouseIsOverOpenedFrame() then
@@ -3000,7 +3002,13 @@ do
             for _, Dependency in next, Depbox.Dependencies do
                 local Elem = Dependency[1];
                 local Value = Dependency[2];
-                if Elem.Type == 'Toggle' and Elem.Value ~= Value then
+                local Matched;
+                if type(Value) == 'table' then
+                    Matched = table.find(Value, Elem.Value) ~= nil;
+                else
+                    Matched = Elem.Value == Value;
+                end;
+                if (Elem.Type == 'Toggle' or Elem.Type == 'Dropdown') and not Matched then
                     Holder.Visible = false;
                     Depbox:Resize();
                     return;
