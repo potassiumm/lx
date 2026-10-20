@@ -5063,7 +5063,7 @@ function Library:CreateWindow(...)
         return Bool;
     end;
     table.insert(Library.Windows, Window);
-    if Config.AutoShow then task.spawn(Library.Toggle) end
+    if Config.AutoShow and not Config.Silent then task.spawn(Library.Toggle) end
     return Window;
 end;
 local function OnPlayerChange()
