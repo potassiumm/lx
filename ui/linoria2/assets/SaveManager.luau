@@ -187,11 +187,22 @@ local SaveManager = {} do
 		if isfile(self.Folder .. '/settings/autoload.txt') then
 			local name = readfile(self.Folder .. '/settings/autoload.txt')
 
+		local silent_boot = self.Library ~= nil and self.Library.Silent == true
+		if not silent_boot and Options.xyro_auto_show ~= nil then
+			silent_boot = Options.xyro_auto_show.Value == true
+		end
+
 			local success, err = self:Load(name)
 			if not success then
+				if silent_boot then
+					return false
+				end
 				return self.Library:Notify('failed to load autoload config: ' .. err)
 			end
 
+			if silent_boot then
+				return true
+			end
 			self.Library:Notify(string.format('auto loaded config %q', name))
 		end
 	end
